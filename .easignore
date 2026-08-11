@@ -1,0 +1,13 @@
+# Use CNG (Continuous Native Generation) - let EAS prebuild the android folder
+# from app.config.ts instead of using the local stale android/ directory.
+# See: https://docs.expo.dev/workflow/prebuild/#usage-with-eas-build
+/android
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# EAS build logs
+.eas-build-*.log
+.eas-build-*.decoded.log
+.eas-build-view-output.txt
