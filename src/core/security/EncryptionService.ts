@@ -3,8 +3,18 @@
  *
  * Provides cryptographic operations for local data encryption.
  * Stores a master encryption key securely in Expo SecureStore (hardware-backed).
- * Uses the standard WebCrypto API (standard in React Native 0.76+) for high-performance
- * AES-GCM encryption/decryption of sensitive payloads.
+ * Uses the standard WebCrypto API for AES-GCM encryption/decryption of
+ * sensitive payloads.
+ *
+ * ⚠️ NOT YET USABLE. `global.crypto.subtle` (WebCrypto) is not polyfilled
+ * in this project — Hermes does not ship it, and no polyfill (e.g.
+ * `expo-crypto`, `react-native-get-random-values`) is installed. Calling
+ * encrypt()/decrypt() today would previously fail with a cryptic
+ * "Cannot read properties of undefined (reading 'subtle')" deep inside
+ * getOrCreateMasterKey(). assertWebCryptoAvailable() below turns that
+ * into a clear, actionable error instead. There are currently zero call
+ * sites for this service — before the first real caller is added,
+ * install a WebCrypto polyfill and remove this guard.
  */
 import * as SecureStore from 'expo-secure-store';
 
@@ -12,11 +22,23 @@ const MASTER_KEY_ALIAS = 'fintrack.master_encryption_key';
 const ALGORITHM = 'AES-GCM';
 const KEY_LENGTH = 256;
 
+function assertWebCryptoAvailable(): void {
+  if (typeof global.crypto?.subtle === 'undefined') {
+    throw new Error(
+      'EncryptionService: WebCrypto (global.crypto.subtle) is not available in this ' +
+        'runtime. Install a polyfill (e.g. expo-crypto or react-native-get-random-values) ' +
+        'and wire it up before calling EncryptionService.encrypt()/decrypt(). See the ' +
+        'header comment in EncryptionService.ts.',
+    );
+  }
+}
+
 // Helper to convert array buffer to base64
 function bufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
   for (let i = 0; i < bytes.byteLength; i++) {
+    // Non-null: loop bound is bytes.byteLength, so index i is always in range.
     binary += String.fromCharCode(bytes[i]!);
   }
   return btoa(binary);
@@ -94,6 +116,7 @@ export const EncryptionService = {
    * Returns a base64 encoded JSON string containing ciphertext and IV.
    */
   async encrypt(plainText: string): Promise<string> {
+    assertWebCryptoAvailable();
     try {
       const key = await getOrCreateMasterKey();
       
@@ -125,6 +148,7 @@ export const EncryptionService = {
    * Decrypt a ciphertext payload using AES-GCM 256.
    */
   async decrypt(encryptedJson: string): Promise<string> {
+    assertWebCryptoAvailable();
     try {
       const key = await getOrCreateMasterKey();
       const payload = JSON.parse(encryptedJson) as { ciphertext: string; iv: string };

@@ -11,6 +11,7 @@
  */
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
+import JailMonkey from 'jail-monkey';
 import { api } from '../api/client';
 import { endpoints } from '../api/endpoints';
 
@@ -20,21 +21,22 @@ export const RootDetection = {
    * Returns true if ANY indicator is detected.
    *
    * Note: This is best-effort. A determined attacker can bypass this.
+   * `JailMonkey.isJailBroken()` runs RootBeer's checks on Android
+   * (su binary, root-management apps, dangerous props, Magisk binary,
+   * etc.) and the standard jailbreak file/path checks on iOS.
+   * `!Device.isDevice` (running in an emulator/simulator) is combined
+   * as an additional signal — real users run on real hardware.
    */
   async isDeviceCompromised(): Promise<boolean> {
     try {
-      // expo-device provides basic device integrity checks
-      const isRooted = !Device.isDevice; // Running in emulator/simulator
+      const isEmulator = !Device.isDevice;
+      const isJailBroken = JailMonkey.isJailBroken();
 
-      // Additional platform-specific checks would go here
-      // In production, use a dedicated library like:
-      //   - Android: SafetyNet / Play Integrity API
-      //   - iOS: IOSSecuritySuite
-
-      return isRooted;
+      return isEmulator || isJailBroken;
     } catch {
-      // If detection itself fails, treat as suspicious
-      return false;
+      // If detection itself fails, treat as suspicious — a broken
+      // detector is not evidence of a clean device.
+      return true;
     }
   },
 

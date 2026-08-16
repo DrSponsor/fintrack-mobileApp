@@ -22,8 +22,13 @@ import { SyncQueueItemModel } from './models/SyncQueueItem.model';
 const adapter = new SQLiteAdapter({
   schema,
   migrations,
-  // Use JSI for New Architecture — direct memory access, no JSON bridge
-  jsi: true,
+  // jsi: false — New Architecture is disabled project-wide (see app.config.ts,
+  // android/gradle.properties, and KNOWN_ISSUES.md). We hit a real WatermelonDB
+  // JSI crash on Android under the New Architecture; jsi: false + the legacy
+  // bridge is the proven-stable configuration. Do not flip this back to true
+  // without also re-enabling newArchEnabled in app.config.ts and
+  // android/gradle.properties, and re-testing on physical Android devices.
+  jsi: false,
   // In production, use the onSetUpError callback to detect and handle
   // database corruption on startup
   onSetUpError: (error) => {

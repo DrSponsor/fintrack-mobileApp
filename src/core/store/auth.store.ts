@@ -27,6 +27,7 @@ interface AuthState {
   readonly setUser: (user: AuthUser) => void;
   readonly setTier: (tier: UserTier) => void;
   readonly setLoading: (loading: boolean) => void;
+  readonly markAuthenticated: () => void;
   readonly logout: () => void;
 }
 
@@ -49,6 +50,15 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setLoading: (isLoading: boolean) =>
     set({ isLoading }),
+
+  // A valid token exists (confirmed by the caller) but the profile fetch
+  // that would populate `user` failed transiently (network blip, 5xx —
+  // not an auth failure). Per "offline is the default state," this must
+  // not evict the session. Screens render from WatermelonDB cache and the
+  // caller is expected to retry the profile fetch later (foreground
+  // refresh / pull-to-refresh) rather than block the user out.
+  markAuthenticated: () =>
+    set({ isLoggedIn: true, isLoading: false }),
 
   logout: () =>
     set({

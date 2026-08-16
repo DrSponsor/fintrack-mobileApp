@@ -6,7 +6,7 @@
  * to trigger recompute if stale.
  */
 import { Model } from '@nozbe/watermelondb';
-import { field, date, readonly, json } from '@nozbe/watermelondb/decorators';
+import { field, date, json } from '@nozbe/watermelondb/decorators';
 
 // Sanitizer for JSON field — passes through as-is
 const sanitizeJson = (raw: unknown): unknown => raw;

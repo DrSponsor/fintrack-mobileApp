@@ -1,8 +1,9 @@
 /**
  * Category Model — WatermelonDB
  */
-import { Model } from '@nozbe/watermelondb';
+import { Model, type Query } from '@nozbe/watermelondb';
 import { field, children } from '@nozbe/watermelondb/decorators';
+import type { TransactionModel } from './Transaction.model';
 
 export class CategoryModel extends Model {
   static table = 'categories';
@@ -17,5 +18,5 @@ export class CategoryModel extends Model {
   @field('is_custom') isCustom!: boolean;
   @field('usage_count') usageCount!: number;
 
-  @children('transactions') transactions!: any;
+  @children('transactions') transactions!: Query<TransactionModel>;
 }

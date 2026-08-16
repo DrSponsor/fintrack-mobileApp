@@ -12,6 +12,7 @@ import { useAuthStore } from '@/core/store/auth.store';
 import { TokenManager } from '@/core/security/TokenManager';
 import { api } from '@/core/api/client';
 import { endpoints } from '@/core/api/endpoints';
+import { forceLogout } from '@/core/api/interceptors/refresh.interceptor';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary/ErrorBoundary';
 import { initSentry, initPostHog } from '@/core/observability';
 import type { UserProfile } from '@/features/auth/types';
@@ -57,20 +58,24 @@ export default function RootLayout() {
  * Auth gate — controls navigation between auth and app stacks.
  *
  * On mount:
- *   1. Check Keychain for existing access token
- *   2. If token exists → call GET /v1/users/me to hydrate real user data
- *   3. If hydration succeeds → navigate to app
- *   4. If hydration fails (401) → attempt token refresh → retry
- *   5. If all fails → clear tokens → navigate to auth
- *   6. If no token → navigate to auth
- *
- * This replaces the previous dummy user approach.
+ *   1. Check Keychain for existing access token. None → navigate to auth.
+ *   2. Token exists → call GET /v1/users/me to hydrate real user data.
+ *      A 401 here triggers the refresh interceptor's silent refresh
+ *      automatically, before this call ever sees the rejection.
+ *   3. Hydration succeeds → navigate to app with full profile data.
+ *   4. Hydration fails and no token remains → refresh itself failed;
+ *      forceLogout() (shared with the refresh interceptor) → navigate to auth.
+ *   5. Hydration fails but a token still remains → refresh succeeded, or
+ *      this was a transient non-auth failure (network/5xx). Navigate to
+ *      app authenticated-without-profile; the profile is refetched later.
+ *      A transient error must never evict a valid session.
  */
 function AppContent() {
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const isLoading = useAuthStore((state) => state.isLoading);
   const setUser = useAuthStore((state) => state.setUser);
   const setLoading = useAuthStore((state) => state.setLoading);
+  const markAuthenticated = useAuthStore((state) => state.markAuthenticated);
   const logout = useAuthStore((state) => state.logout);
 
   const segments = useSegments();
@@ -96,17 +101,25 @@ function AppContent() {
             createdAt: profile.createdAt,
           });
         } catch {
-          // Token invalid/expired — the refresh interceptor will attempt
-          // to refresh automatically. If that also fails, forceLogout()
-          // is called by the interceptor. We just need to clean up here.
+          // Token invalid/expired — the refresh interceptor will already
+          // have attempted a silent refresh if this was a 401. Two
+          // distinct outcomes reach this catch:
           const stillHasToken = await TokenManager.getAccessToken();
           if (!stillHasToken) {
-            // Refresh failed and tokens were cleared by the interceptor
-            logout();
+            // Refresh failed and the interceptor already cleared Keychain
+            // tokens. Route through the same forceLogout() the interceptor
+            // uses so this call site can never drift from it (Keychain +
+            // store always cleared together).
+            await forceLogout();
           } else {
-            // Refresh succeeded but profile fetch failed for another reason
-            // (e.g., server error). Still try to proceed with limited data.
-            logout();
+            // A valid token remains — either refresh succeeded, or this
+            // wasn't a 401 at all (e.g. a transient network drop or 5xx
+            // on cold start). Per "offline is the default state," a
+            // transient profile-fetch failure must not evict a valid
+            // session. Mark authenticated without profile data; screens
+            // render from the WatermelonDB cache and the profile is
+            // refetched later (foreground refresh / pull-to-refresh).
+            markAuthenticated();
           }
         }
       } catch {
@@ -116,7 +129,7 @@ function AppContent() {
       }
     }
     checkAuth();
-  }, [setUser, logout, setLoading]);
+  }, [setUser, logout, setLoading, markAuthenticated]);
 
   // Navigation guard — redirect based on auth state
   useEffect(() => {

@@ -12,11 +12,10 @@
  * and "wrong password" to prevent email enumeration. We mirror this
  * on the mobile side — always show "Invalid email or password."
  */
-import { api } from '@/core/api/client';
-import { endpoints } from '@/core/api/endpoints';
 import { TokenManager } from '@/core/security/TokenManager';
 import { useAuthStore } from '@/core/store/auth.store';
-import type { LoginResponse, UserProfile } from '../types';
+import type { IAuthRepository } from '@/core/repositories/auth/IAuthRepository';
+import { RemoteAuthRepository } from '@/core/repositories/auth/RemoteAuthRepository';
 import { loginSchema, type LoginFormData } from '../schemas/auth.schemas';
 
 export interface LoginResult {
@@ -27,47 +26,54 @@ export interface LoginError {
   readonly success: false;
   readonly code: string;
   readonly message: string;
-  readonly field?: string;
+  readonly field?: string | undefined;
 }
 
 export async function executeLogin(
   data: LoginFormData,
+  authRepository: IAuthRepository = RemoteAuthRepository,
 ): Promise<LoginResult | LoginError> {
   // 1. Client-side validation
   const parsed = loginSchema.safeParse(data);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
+    const field = issue?.path[0] !== undefined ? String(issue.path[0]) : undefined;
     return {
       success: false,
       code: 'VALIDATION_ERROR',
       message: issue?.message ?? 'Validation failed',
-      field: issue?.path[0] !== undefined ? String(issue.path[0]) : undefined,
+      ...(field !== undefined ? { field } : {}),
     };
   }
 
   try {
     // 2. Call backend
-    const response = await api.post<LoginResponse>(endpoints.auth.login, {
-      email: parsed.data.email,
-      password: parsed.data.password,
-    });
+    const response = await authRepository.login(parsed.data.email, parsed.data.password);
 
-    // 3. Store tokens in OS Keychain
-    await TokenManager.setAccessToken(response.accessToken);
-    await TokenManager.setRefreshToken(response.refreshToken);
+    // 3-4. Store tokens, then fetch the profile they authorize. If the
+    // profile fetch fails, the tokens we just wrote describe a session
+    // that never actually completed login — clear them before returning
+    // an error, so a failed login never leaves a partial session sitting
+    // in the Keychain for a later cold start to pick up.
+    try {
+      await TokenManager.setAccessToken(response.accessToken);
+      await TokenManager.setRefreshToken(response.refreshToken);
 
-    // 4. Fetch full user profile
-    const profile = await api.get<UserProfile>(endpoints.users.me);
+      const profile = await authRepository.getProfile();
 
-    // 5. Update auth store
-    useAuthStore.getState().setUser({
-      id: profile.id,
-      email: profile.email,
-      tier: profile.tier,
-      createdAt: profile.createdAt,
-    });
+      // 5. Update auth store
+      useAuthStore.getState().setUser({
+        id: profile.id,
+        email: profile.email,
+        tier: profile.tier,
+        createdAt: profile.createdAt,
+      });
 
-    return { success: true };
+      return { success: true };
+    } catch (postLoginError) {
+      await TokenManager.clearAll();
+      throw postLoginError;
+    }
   } catch (error: unknown) {
     return handleLoginError(error);
   }

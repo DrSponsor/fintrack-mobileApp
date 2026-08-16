@@ -6,6 +6,8 @@ const EAS_PROJECT_ID =
   process.env.EAS_PROJECT_ID ?? '6e6f1650-a353-499f-91de-6f3776daf3fc';
 
 const getApiUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+  if (process.env.DEV_API_URL) return process.env.DEV_API_URL;
   if (IS_DEV) return 'http://10.0.2.2:3000'; // Android emulator → host machine
   if (IS_STAGING) return 'https://staging-api.fintrack.ng';
   return 'https://api.fintrack.ng';
@@ -32,7 +34,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: './assets/icon.png',
   scheme: 'fintrack',
   userInterfaceStyle: 'automatic',
-  newArchEnabled: true,
+  // New Architecture is disabled — see KNOWN_ISSUES.md for the WatermelonDB/JSI
+  // Android stability issue and the re-evaluation trigger. Must match
+  // android/gradle.properties (newArchEnabled) and database.ts (jsi flag).
+  newArchEnabled: false,
 
   splash: {
     image: './assets/splash-icon.png',

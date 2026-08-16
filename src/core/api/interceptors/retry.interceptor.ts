@@ -39,6 +39,9 @@ export function setupRetryInterceptor(axiosInstance: AxiosInstance): void {
 
       config._retryCount = retryCount + 1;
 
+      // Non-null: RETRY_DELAYS is a fixed non-empty literal, so its last
+      // index always holds a value — noUncheckedIndexedAccess just can't
+      // prove that statically.
       const delay = RETRY_DELAYS[retryCount] ?? RETRY_DELAYS[RETRY_DELAYS.length - 1]!;
       await sleep(delay);
 

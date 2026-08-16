@@ -1,8 +1,9 @@
 /**
  * Account Model — WatermelonDB
  */
-import { Model } from '@nozbe/watermelondb';
+import { Model, type Query } from '@nozbe/watermelondb';
 import { field, date, readonly, children } from '@nozbe/watermelondb/decorators';
+import type { TransactionModel } from './Transaction.model';
 
 export class AccountModel extends Model {
   static table = 'accounts';
@@ -23,7 +24,7 @@ export class AccountModel extends Model {
   @readonly @date('created_at') createdAt!: Date;
   @readonly @date('updated_at') updatedAt!: Date;
 
-  @children('transactions') transactions!: any;
+  @children('transactions') transactions!: Query<TransactionModel>;
 
   /** Balance as BigInt — safe for monetary arithmetic */
   get balanceKoboBigInt(): bigint {

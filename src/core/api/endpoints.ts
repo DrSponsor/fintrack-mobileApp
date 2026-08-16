@@ -25,13 +25,20 @@ export const endpoints = {
   },
 
   // ── Capture ──────────────────────────────────────────────
+  // NOTE: new transactions from a connected Gmail account arrive purely
+  // via a server-side Pub/Sub webhook → BullMQ worker → DB write. There
+  // is no client-facing poll/status endpoint — the mobile client only
+  // ever discovers new email-captured transactions through the regular
+  // `transactions.list` pull (SyncEngine / pull-to-refresh / background
+  // sync). Do not build a "checking for new emails" polling UI state.
   capture: {
     manual: `${V1}/capture/manual`,
     email: {
-      connect: `${V1}/capture/email/connect`,
-      disconnect: `${V1}/capture/email/disconnect`,
-      poll: `${V1}/capture/email/poll`,
-      status: `${V1}/capture/email/status`,
+      // Requires an Account with captureMethod: 'EMAIL' to already exist
+      // — body is { accountId, code } (Google OAuth authorization code).
+      oauthCallback: `${V1}/capture/email/oauth/callback`,
+      // body is { accountId }.
+      oauthDisconnect: `${V1}/capture/email/oauth/disconnect`,
     },
   },
 
@@ -64,13 +71,17 @@ export const endpoints = {
   // ── Billing ──────────────────────────────────────────────
   billing: {
     checkout: `${V1}/billing/checkout`,
-    subscription: `${V1}/billing/subscription`,
+    // Response shape is { status: 'ACTIVE'|'GRACE_PERIOD'|'CANCELLED'|
+    // 'EXPIRED'|'NONE', currentPeriodEnd }, not a `subscription` field.
+    status: `${V1}/billing/status`,
     cancel: `${V1}/billing/cancel`,
   },
 
   // ── Notifications ────────────────────────────────────────
   notifications: {
-    registerDevice: `${V1}/notifications/register-device`,
+    // Same path for register (POST, body { token, platform }) and
+    // unregister (DELETE, body { token }).
+    tokens: `${V1}/notifications/tokens`,
   },
 
   // ── Privacy / NDPR ───────────────────────────────────────

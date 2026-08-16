@@ -1,8 +1,9 @@
 /**
  * Budget Model — WatermelonDB
  */
-import { Model } from '@nozbe/watermelondb';
+import { Model, type Relation } from '@nozbe/watermelondb';
 import { field, date, readonly, relation, writer } from '@nozbe/watermelondb/decorators';
+import type { CategoryModel } from './Category.model';
 
 export class BudgetModel extends Model {
   static table = 'budgets';
@@ -23,7 +24,7 @@ export class BudgetModel extends Model {
   @readonly @date('created_at') createdAt!: Date;
   @readonly @date('updated_at') updatedAt!: Date;
 
-  @relation('categories', 'category_id') category!: any;
+  @relation('categories', 'category_id') category!: Relation<CategoryModel>;
 
   /** Limit as BigInt */
   get limitKoboBigInt(): bigint {

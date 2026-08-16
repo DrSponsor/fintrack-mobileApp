@@ -17,7 +17,7 @@ import type { LoginFormData, RegisterFormData } from '../schemas/auth.schemas';
 interface AuthError {
   readonly code: string;
   readonly message: string;
-  readonly field?: string;
+  readonly field?: string | undefined;
 }
 
 export function useAuth() {
@@ -36,10 +36,11 @@ export function useAuth() {
       const result = await executeLogin(data);
 
       if (!result.success) {
+        const err = result as LoginError;
         setError({
-          code: result.code,
-          message: result.message,
-          field: (result as LoginError).field,
+          code: err.code,
+          message: err.message,
+          ...(err.field !== undefined ? { field: err.field } : {}),
         });
         return false;
       }
@@ -58,10 +59,11 @@ export function useAuth() {
       const result = await executeRegister(data);
 
       if (!result.success) {
+        const err = result as RegisterError;
         setError({
-          code: result.code,
-          message: result.message,
-          field: (result as RegisterError).field,
+          code: err.code,
+          message: err.message,
+          ...(err.field !== undefined ? { field: err.field } : {}),
         });
         return false;
       }

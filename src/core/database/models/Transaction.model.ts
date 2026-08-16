@@ -9,8 +9,10 @@
  * cast to BigInt at every usage boundary for monetary arithmetic.
  * See the kobo casting helpers at the bottom.
  */
-import { Model } from '@nozbe/watermelondb';
+import { Model, type Relation } from '@nozbe/watermelondb';
 import { field, date, readonly, relation, text, writer } from '@nozbe/watermelondb/decorators';
+import type { AccountModel } from './Account.model';
+import type { CategoryModel } from './Category.model';
 
 export class TransactionModel extends Model {
   static table = 'transactions';
@@ -59,8 +61,8 @@ export class TransactionModel extends Model {
   @readonly @date('created_at') createdAt!: Date;
   @readonly @date('updated_at') updatedAt!: Date;
 
-  @relation('accounts', 'account_id') account!: any;
-  @relation('categories', 'category_id') category!: any;
+  @relation('accounts', 'account_id') account!: Relation<AccountModel>;
+  @relation('categories', 'category_id') category!: Relation<CategoryModel>;
 
   // ── Kobo helpers ───────────────────────────────────────
   // These are the ONLY acceptable way to get BigInt values from this model.

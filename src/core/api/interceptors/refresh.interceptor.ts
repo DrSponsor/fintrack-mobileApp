@@ -16,6 +16,13 @@ import type { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import { TokenManager } from '../../security/TokenManager';
 import { endpoints } from '../endpoints';
 import { useAuthStore } from '../../store/auth.store';
+import type { ApiResponse } from '../client';
+
+interface RefreshResponse {
+  readonly accessToken: string;
+  readonly refreshToken?: string;
+  readonly expiresIn: number;
+}
 
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -37,8 +44,12 @@ function processQueue(error: unknown, token: string | null): void {
 /**
  * Force logout when refresh fails.
  * Clears tokens and resets auth state — user must re-authenticate.
+ *
+ * Exported so other call sites that need to react to a truly-invalid
+ * session (e.g. the root auth gate) stay consistent with this interceptor
+ * instead of re-implementing "clear Keychain + reset store" separately.
  */
-async function forceLogout(): Promise<void> {
+export async function forceLogout(): Promise<void> {
   await TokenManager.clearAll();
   useAuthStore.getState().logout();
 }
@@ -89,18 +100,19 @@ export function setupRefreshInterceptor(axiosInstance: AxiosInstance): void {
 
         // Send refresh token in body (mobile pattern)
         // The backend accepts this alongside the cookie-based flow
-        const response = await axiosInstance.post(endpoints.auth.refresh, {
-          refreshToken,
-        });
+        const response = await axiosInstance.post<ApiResponse<RefreshResponse>>(
+          endpoints.auth.refresh,
+          { refreshToken },
+        );
 
-        const { accessToken } = response.data.data;
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
 
         // Store the new tokens
         await TokenManager.setAccessToken(accessToken);
 
         // If the backend returns a new refresh token, store it too
-        if (response.data.data.refreshToken) {
-          await TokenManager.setRefreshToken(response.data.data.refreshToken);
+        if (newRefreshToken) {
+          await TokenManager.setRefreshToken(newRefreshToken);
         }
 
         processQueue(null, accessToken);

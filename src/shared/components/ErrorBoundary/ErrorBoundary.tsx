@@ -12,6 +12,7 @@
  */
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { colors, spacing, radius } from '@/design-system/tokens';
 import { typography } from '@/design-system/typography';
 
@@ -38,8 +39,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // Log to Sentry in production
-    // Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
+    Sentry.captureException(error, {
+      extra: { componentStack: errorInfo.componentStack, level: this.props.level ?? 'section' },
+    });
 
     this.props.onError?.(error, errorInfo);
   }

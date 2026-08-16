@@ -5,3 +5,18 @@
 expo-env.d.ts
 # @end expo-cli
 node_modules
+.expo/
+dist/
+web-build/
+
+# Local env overrides — never commit real secrets (Google OAuth client IDs,
+# Paystack keys, Sentry DSN, PostHog key) that will eventually live here.
+.env
+.env.local
+.env.*.local
+
+# JVM crash artifacts from a Gradle build crash — not build output, not
+# reproducible input, safe to regenerate/discard.
+android/hs_err_pid*.log
+android/replay_pid*.log
+

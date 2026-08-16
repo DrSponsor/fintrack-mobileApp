@@ -13,11 +13,10 @@
  *   - 422 VALIDATION_ERROR → show field-level errors
  *   - Network error → "Please check your connection"
  */
-import { api } from '@/core/api/client';
-import { endpoints } from '@/core/api/endpoints';
 import { TokenManager } from '@/core/security/TokenManager';
 import { useAuthStore } from '@/core/store/auth.store';
-import type { RegisterResponse, UserProfile } from '../types';
+import type { IAuthRepository } from '@/core/repositories/auth/IAuthRepository';
+import { RemoteAuthRepository } from '@/core/repositories/auth/RemoteAuthRepository';
 import { registerSchema, type RegisterFormData } from '../schemas/auth.schemas';
 
 export interface RegisterResult {
@@ -29,47 +28,52 @@ export interface RegisterError {
   readonly success: false;
   readonly code: string;
   readonly message: string;
-  readonly field?: string;
+  readonly field?: string | undefined;
 }
 
 export async function executeRegister(
   data: RegisterFormData,
+  authRepository: IAuthRepository = RemoteAuthRepository,
 ): Promise<RegisterResult | RegisterError> {
   // 1. Client-side validation (fail fast before network call)
   const parsed = registerSchema.safeParse(data);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
+    const field = issue?.path[0] !== undefined ? String(issue.path[0]) : undefined;
     return {
       success: false,
       code: 'VALIDATION_ERROR',
       message: issue?.message ?? 'Validation failed',
-      field: issue?.path[0] !== undefined ? String(issue.path[0]) : undefined,
+      ...(field !== undefined ? { field } : {}),
     };
   }
 
   try {
     // 2. Call backend
-    const response = await api.post<RegisterResponse>(endpoints.auth.register, {
-      email: parsed.data.email,
-      password: parsed.data.password,
-    });
+    const response = await authRepository.register(parsed.data.email, parsed.data.password);
 
-    // 3. Store tokens securely in OS Keychain
-    await TokenManager.setAccessToken(response.accessToken);
-    await TokenManager.setRefreshToken(response.refreshToken);
+    // 3-4. Store tokens, then fetch the profile they authorize. If the
+    // profile fetch fails, clear the tokens we just wrote — a failed
+    // registration must never leave a partial session in the Keychain.
+    try {
+      await TokenManager.setAccessToken(response.accessToken);
+      await TokenManager.setRefreshToken(response.refreshToken);
 
-    // 4. Fetch full user profile
-    const profile = await api.get<UserProfile>(endpoints.users.me);
+      const profile = await authRepository.getProfile();
 
-    // 5. Update auth store with real data
-    useAuthStore.getState().setUser({
-      id: profile.id,
-      email: profile.email,
-      tier: profile.tier,
-      createdAt: profile.createdAt,
-    });
+      // 5. Update auth store with real data
+      useAuthStore.getState().setUser({
+        id: profile.id,
+        email: profile.email,
+        tier: profile.tier,
+        createdAt: profile.createdAt,
+      });
 
-    return { success: true, userId: profile.id };
+      return { success: true, userId: profile.id };
+    } catch (postRegisterError) {
+      await TokenManager.clearAll();
+      throw postRegisterError;
+    }
   } catch (error: unknown) {
     return handleAuthError(error);
   }
@@ -87,7 +91,13 @@ function handleAuthError(error: unknown): RegisterError {
       return { success: false, code, message: 'This email is already registered. Try signing in instead.', field: 'email' };
     }
 
-    return { success: false, code, message, field: data.error?.field };
+    const field = data.error?.field;
+    return {
+      success: false,
+      code,
+      message,
+      ...(field !== undefined ? { field } : {}),
+    };
   }
 
   // Network error (no response)

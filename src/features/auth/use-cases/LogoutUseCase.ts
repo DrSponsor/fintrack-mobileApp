@@ -17,7 +17,6 @@ import { TokenManager } from '@/core/security/TokenManager';
 import { database } from '@/core/database/database';
 import { useAuthStore } from '@/core/store/auth.store';
 import { useSyncStore } from '@/core/store/sync.store';
-import { useUIStore } from '@/core/store/ui.store';
 
 export async function executeLogout(): Promise<void> {
   // 1. Server-side session invalidation (best-effort)

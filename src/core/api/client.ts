@@ -16,6 +16,13 @@ import Constants from 'expo-constants';
 import { authRequestInterceptor } from './interceptors/auth.interceptor';
 import { setupRefreshInterceptor } from './interceptors/refresh.interceptor';
 import { setupRetryInterceptor } from './interceptors/retry.interceptor';
+import { initSslPinningIfEnabled } from '../security/SSLPinning';
+
+// Fired at module-load time — before any code that imports `apiClient`/`api`
+// can run its own logic — so pinning (when enabled) is active before the
+// first possible request. See SSLPinning.ts for why this isn't done from a
+// React effect instead. No-op today (sslPinConfig.enabled is false).
+void initSslPinningIfEnabled();
 
 const apiUrl =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
@@ -56,7 +63,7 @@ export interface ApiError {
   error: {
     code: string;
     message: string;
-    field?: string;
+    field?: string | undefined;
   };
   requestId: string;
 }

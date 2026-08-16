@@ -1,13 +1,15 @@
 {
   "cli": {
-    "version": ">= 12.0.0"
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "APP_ENV": "development"
+        "APP_ENV": "development",
+        "DEV_API_URL": "https://cute-falcons-shout.loca.lt"
       },
       "android": {
         "buildType": "apk"

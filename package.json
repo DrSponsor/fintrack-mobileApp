@@ -7,8 +7,8 @@
     "dev": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
     "typecheck": "tsc --noEmit",
     "test": "jest",
@@ -48,6 +48,7 @@
     "expo-status-bar": "~2.0.0",
     "expo-task-manager": "~12.0.0",
     "expo-updates": "~0.27.0",
+    "jail-monkey": "2.8.5",
     "phosphor-react-native": "~2.1.0",
     "posthog-react-native": "~3.4.0",
     "react": "18.3.1",
@@ -56,27 +57,41 @@
     "react-native": "0.76.9",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-keychain": "~9.2.0",
+    "react-native-mmkv": "2.12.2",
     "react-native-reanimated": "~3.16.0",
     "react-native-safe-area-context": "4.12.0",
     "react-native-screens": "~4.4.0",
-    "react-native-screenshot-prevent": "~1.1.0",
+    "react-native-ssl-public-key-pinning": "^1.2.6",
     "react-native-svg": "15.8.0",
     "react-native-web": "~0.19.13",
     "victory-native": "~41.6.0",
     "zod": "~3.23.0",
-    "zustand": "~5.0.0",
-    "react-native-mmkv": "~3.2.0"
+    "zustand": "~5.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
     "@testing-library/react-native": "~12.8.0",
+    "@types/jest": "^30.0.0",
     "@types/react": "~18.3.0",
     "concurrently": "^10.0.3",
     "eslint": "~9.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "expo-dev-client": "~5.0.0",
     "jest": "~29.7.0",
+    "jest-expo": "^52.0.6",
     "prettier": "~3.4.0",
     "react-test-renderer": "18.3.1",
-    "typescript": "~5.6.0"
+    "typescript": "~5.6.0",
+    "typescript-eslint": "^8.67.0"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "@nozbe/watermelondb"
+        ],
+        "listUnknownPackages": false
+      }
+    }
   }
 }
