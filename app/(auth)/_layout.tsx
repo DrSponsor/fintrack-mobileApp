@@ -7,6 +7,9 @@ export default function AuthLayout() {
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
+        // Transparent so the Material layer's atmosphere and grain read through
+        // — the navigator would otherwise paint an opaque scene background.
+        contentStyle: { backgroundColor: 'transparent' },
       }}
     >
       <Stack.Screen name="welcome" />

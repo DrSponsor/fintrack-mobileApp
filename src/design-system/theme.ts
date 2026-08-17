@@ -1,54 +1,34 @@
 /**
- * FinTrack Theme Definitions
+ * Theme — the "Ledger" design language.
  *
- * Dark theme is primary (most Nigerian users prefer dark mode for
- * AMOLED battery savings and visual comfort). Light theme available
- * for user preference.
+ * Dark-only, by decision. The palette, the material layer (grain, atmosphere,
+ * bloom) and the elevation model are all built specifically for a near-black
+ * chromatic ground; a light theme is not a recolour of this one, it is a
+ * separate design problem. Shipping a half-considered light mode is a reliable
+ * way to look cheap, so it is deferred to its own pass rather than stubbed.
+ *
+ * Practical consequence: do not build a theme toggle in Settings until a light
+ * theme actually exists.
  */
-import { colors, spacing, radius, shadows, animation } from './tokens';
+import { colors, spacing, radius, shadow, motion, material } from './tokens';
 import { typography } from './typography';
 
-export interface FinTrackTheme {
-  readonly dark: boolean;
-  readonly colors: {
-    readonly bg: typeof colors.bg | typeof colors.light.bg;
-    readonly accent: typeof colors.accent;
-    readonly text: typeof colors.text | typeof colors.light.text;
-    readonly border: typeof colors.border | typeof colors.light.border;
-  };
+export interface AppTheme {
+  readonly colors: typeof colors;
   readonly spacing: typeof spacing;
   readonly radius: typeof radius;
-  readonly shadows: typeof shadows;
+  readonly shadow: typeof shadow;
   readonly typography: typeof typography;
-  readonly animation: typeof animation;
+  readonly motion: typeof motion;
+  readonly material: typeof material;
 }
 
-export const darkTheme: FinTrackTheme = {
-  dark: true,
-  colors: {
-    bg: colors.bg,
-    accent: colors.accent,
-    text: colors.text,
-    border: colors.border,
-  },
+export const theme: AppTheme = {
+  colors,
   spacing,
   radius,
-  shadows,
+  shadow,
   typography,
-  animation,
-} as const;
-
-export const lightTheme: FinTrackTheme = {
-  dark: false,
-  colors: {
-    bg: colors.light.bg,
-    accent: colors.accent,
-    text: colors.light.text,
-    border: colors.light.border,
-  },
-  spacing,
-  radius,
-  shadows,
-  typography,
-  animation,
+  motion,
+  material,
 } as const;

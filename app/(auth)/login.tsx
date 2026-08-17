@@ -4,15 +4,17 @@ import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from '@/design-system/ThemeProvider';
-import type { FinTrackTheme } from '@/design-system/theme';
+import type { AppTheme } from '@/design-system/theme';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { loginSchema, type LoginFormData } from '@/features/auth/schemas/auth.schemas';
 
-function createStyles(theme: FinTrackTheme) {
+function createStyles(theme: AppTheme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.bg.primary,
+      // Transparent: the Material layer at the root owns the ground colour,
+      // the atmospheric wash and the grain.
+      backgroundColor: 'transparent',
     },
     scrollContent: {
       flexGrow: 1,
@@ -23,7 +25,7 @@ function createStyles(theme: FinTrackTheme) {
       marginBottom: theme.spacing.xxl,
     },
     title: {
-      ...theme.typography.h1,
+      ...theme.typography.title,
       color: theme.colors.text.primary,
       marginBottom: theme.spacing.xs,
     },
@@ -38,12 +40,12 @@ function createStyles(theme: FinTrackTheme) {
       gap: theme.spacing.xs,
     },
     label: {
-      ...theme.typography.labelLarge,
+      ...theme.typography.caption,
       color: theme.colors.text.primary,
     },
     input: {
-      backgroundColor: theme.colors.bg.tertiary,
-      borderColor: theme.colors.border.default,
+      backgroundColor: theme.colors.surface.float,
+      borderColor: theme.colors.rule.default,
       borderWidth: 1,
       borderRadius: theme.radius.sm,
       padding: theme.spacing.md,
@@ -52,14 +54,14 @@ function createStyles(theme: FinTrackTheme) {
       fontSize: theme.typography.body.fontSize,
     },
     inputFocused: {
-      borderColor: theme.colors.accent.green,
+      borderColor: theme.colors.brass.base,
     },
     inputError: {
-      borderColor: theme.colors.accent.red,
+      borderColor: theme.colors.state.danger,
     },
     fieldError: {
       ...theme.typography.caption,
-      color: theme.colors.accent.red,
+      color: theme.colors.state.danger,
       marginTop: 2,
     },
     globalError: {
@@ -67,14 +69,14 @@ function createStyles(theme: FinTrackTheme) {
       borderRadius: theme.radius.sm,
       padding: theme.spacing.md,
       borderLeftWidth: 3,
-      borderLeftColor: theme.colors.accent.red,
+      borderLeftColor: theme.colors.state.danger,
     },
     globalErrorText: {
       ...theme.typography.body,
-      color: theme.colors.accent.red,
+      color: theme.colors.state.danger,
     },
     button: {
-      backgroundColor: theme.colors.accent.green,
+      backgroundColor: theme.colors.brass.base,
       borderRadius: theme.radius.md,
       paddingVertical: theme.spacing.lg,
       alignItems: 'center',
@@ -99,8 +101,8 @@ function createStyles(theme: FinTrackTheme) {
       color: theme.colors.text.secondary,
     },
     footerLink: {
-      ...theme.typography.bodyMedium,
-      color: theme.colors.accent.green,
+      ...theme.typography.bodyStrong,
+      color: theme.colors.brass.base,
     },
   });
 }

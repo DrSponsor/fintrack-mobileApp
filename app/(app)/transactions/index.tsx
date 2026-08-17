@@ -1,32 +1,34 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View, ScrollView } from 'react-native';
 import { useTheme } from '@/design-system/ThemeProvider';
-import type { FinTrackTheme } from '@/design-system/theme';
+import type { AppTheme } from '@/design-system/theme';
 
-function createStyles(theme: FinTrackTheme) {
+function createStyles(theme: AppTheme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.bg.primary,
+      // Transparent: the Material layer at the root owns the ground colour,
+      // the atmospheric wash and the grain.
+      backgroundColor: 'transparent',
     },
     header: {
       padding: theme.spacing.lg,
       borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border.default,
+      borderBottomColor: theme.colors.rule.default,
     },
     title: {
-      ...theme.typography.h1,
+      ...theme.typography.title,
       color: theme.colors.text.primary,
     },
     scrollContent: {
       padding: theme.spacing.lg,
     },
     card: {
-      backgroundColor: theme.colors.bg.secondary,
+      backgroundColor: theme.colors.surface.raised,
       borderRadius: theme.radius.md,
       padding: theme.spacing.lg,
       borderWidth: 1,
-      borderColor: theme.colors.border.default,
+      borderColor: theme.colors.rule.default,
       alignItems: 'center',
       justifyContent: 'center',
     },

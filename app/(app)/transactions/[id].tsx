@@ -10,20 +10,22 @@ export default function TransactionDetailScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.bg.primary,
+      // Transparent: the Material layer at the root owns the ground colour,
+      // the atmospheric wash and the grain.
+      backgroundColor: 'transparent',
       padding: theme.spacing.lg,
     },
     title: {
-      ...theme.typography.h1,
+      ...theme.typography.title,
       color: theme.colors.text.primary,
       marginBottom: theme.spacing.md,
     },
     card: {
-      backgroundColor: theme.colors.bg.secondary,
+      backgroundColor: theme.colors.surface.raised,
       borderRadius: theme.radius.md,
       padding: theme.spacing.lg,
       borderWidth: 1,
-      borderColor: theme.colors.border.default,
+      borderColor: theme.colors.rule.default,
     },
     label: {
       ...theme.typography.label,

@@ -1,19 +1,27 @@
 /**
- * FinTrack Theme Provider
+ * Theme provider.
  *
- * Detects system theme preference and allows user override.
- * User preference persisted in Zustand ui.store (non-sensitive, okay for MMKV).
+ * The theme is currently dark-only (see theme.ts for why), so there is nothing
+ * to resolve — this provider exists to give components a single `useTheme()`
+ * entry point rather than importing tokens directly, which keeps the eventual
+ * light-mode pass from having to touch every component.
+ *
+ * The `preference` props are retained so the persisted UI-store value and the
+ * call sites in the root layout stay intact, but they are deliberately not
+ * honoured yet. Do not build a Settings theme toggle against them until a light
+ * theme exists — a control that silently does nothing is worse than no control.
  */
 import React, { createContext, useContext, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
-import { darkTheme, lightTheme, type FinTrackTheme } from './theme';
+import { theme as appTheme, type AppTheme } from './theme';
 
-type ThemePreference = 'system' | 'dark' | 'light';
+export type ThemePreference = 'system' | 'dark' | 'light';
 
 interface ThemeContextValue {
-  readonly theme: FinTrackTheme;
+  readonly theme: AppTheme;
   readonly themePreference: ThemePreference;
   readonly setThemePreference: (pref: ThemePreference) => void;
+  /** Always true while the app is dark-only. Kept so components don't need
+   *  rewriting when a light theme lands. */
   readonly isDark: boolean;
 }
 
@@ -30,38 +38,25 @@ export function ThemeProvider({
   preference,
   onPreferenceChange,
 }: ThemeProviderProps): React.JSX.Element {
-  const systemScheme = useColorScheme();
-
-  const resolvedTheme = useMemo(() => {
-    if (preference === 'system') {
-      return systemScheme === 'light' ? lightTheme : darkTheme;
-    }
-    return preference === 'light' ? lightTheme : darkTheme;
-  }, [preference, systemScheme]);
-
   const contextValue = useMemo<ThemeContextValue>(
     () => ({
-      theme: resolvedTheme,
+      theme: appTheme,
       themePreference: preference,
       setThemePreference: onPreferenceChange,
-      isDark: resolvedTheme.dark,
+      isDark: true,
     }),
-    [resolvedTheme, preference, onPreferenceChange],
+    [preference, onPreferenceChange],
   );
 
-  return (
-    <ThemeContext.Provider value={contextValue}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 }
 
 /**
- * Hook to access the current theme.
+ * Access the current theme.
  *
  * @example
- * const { theme, isDark } = useTheme();
- * <View style={{ backgroundColor: theme.colors.bg.primary }} />
+ * const { theme } = useTheme();
+ * <View style={{ backgroundColor: theme.colors.surface.base }} />
  */
 export function useTheme(): ThemeContextValue {
   const context = useContext(ThemeContext);

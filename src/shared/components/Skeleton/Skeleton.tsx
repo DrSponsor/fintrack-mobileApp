@@ -28,7 +28,7 @@ export function Skeleton({ width = '100%', height, borderRadius, style }: Skelet
 
   const styles = StyleSheet.create({
     skeleton: {
-      backgroundColor: theme.colors.bg.tertiary,
+      backgroundColor: theme.colors.surface.float,
       width: width as ViewStyle['width'],
       height: height,
       borderRadius: borderRadius ?? theme.radius.sm,

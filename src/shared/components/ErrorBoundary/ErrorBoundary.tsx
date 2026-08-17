@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   title: {
-    ...typography.h3,
+    ...typography.subheading,
     color: colors.text.primary,
     marginBottom: spacing.sm,
     textAlign: 'center',
@@ -113,13 +113,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   retryButton: {
-    backgroundColor: colors.accent.green,
+    backgroundColor: colors.brass.base,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: radius.md,
   },
   retryText: {
     ...typography.button,
-    color: colors.bg.primary, // Dark text on green button — works in both themes
+    color: colors.surface.base, // Dark text on green button — works in both themes
   },
 });

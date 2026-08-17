@@ -14,6 +14,7 @@ import { api } from '@/core/api/client';
 import { endpoints } from '@/core/api/endpoints';
 import { forceLogout } from '@/core/api/interceptors/refresh.interceptor';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary/ErrorBoundary';
+import { Material } from '@/design-system/material/Material';
 import { initSentry, initPostHog } from '@/core/observability';
 import type { UserProfile } from '@/features/auth/types';
 
@@ -47,7 +48,12 @@ export default function RootLayout() {
     <ErrorBoundary level="global">
       <DatabaseProvider database={database}>
         <ThemeProvider preference={themePreference} onPreferenceChange={setThemePreference}>
-          <AppContent />
+          {/* Owns the app's ground colour, the atmospheric light wash behind
+              content and the film grain over it. Every screen below renders on
+              a transparent background so all three stay visible. */}
+          <Material>
+            <AppContent />
+          </Material>
         </ThemeProvider>
       </DatabaseProvider>
     </ErrorBoundary>
@@ -154,7 +160,14 @@ function AppContent() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // Without this the navigator paints its own opaque scene background
+        // over the Material layer's atmosphere.
+        contentStyle: { backgroundColor: 'transparent' },
+      }}
+    >
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
     </Stack>
@@ -164,6 +177,9 @@ function AppContent() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0F0F11',
+    // Hardcoded rather than themed: this renders above ThemeProvider in the
+    // tree, so useTheme() is unavailable here. Must stay in sync with
+    // colors.surface.base and the splash backgroundColor in app.config.ts.
+    backgroundColor: '#080B12',
   },
 });

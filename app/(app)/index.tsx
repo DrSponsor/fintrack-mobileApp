@@ -1,17 +1,19 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View, Pressable, ScrollView } from 'react-native';
 import { useTheme } from '@/design-system/ThemeProvider';
-import type { FinTrackTheme } from '@/design-system/theme';
+import type { AppTheme } from '@/design-system/theme';
 import { useAuthStore } from '@/core/store/auth.store';
 import { useSyncStore } from '@/core/store/sync.store';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useRouter } from 'expo-router';
 
-function createStyles(theme: FinTrackTheme) {
+function createStyles(theme: AppTheme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.bg.primary,
+      // Transparent: the Material layer at the root owns the ground colour,
+      // the atmospheric wash and the grain.
+      backgroundColor: 'transparent',
     },
     scrollContent: {
       paddingHorizontal: theme.spacing.lg,
@@ -25,7 +27,7 @@ function createStyles(theme: FinTrackTheme) {
       marginBottom: theme.spacing.xl,
     },
     welcomeText: {
-      ...theme.typography.h2,
+      ...theme.typography.heading,
       color: theme.colors.text.primary,
     },
     emailText: {
@@ -34,8 +36,8 @@ function createStyles(theme: FinTrackTheme) {
       marginTop: 2,
     },
     syncBadge: {
-      backgroundColor: theme.colors.bg.secondary,
-      borderColor: theme.colors.border.default,
+      backgroundColor: theme.colors.surface.raised,
+      borderColor: theme.colors.rule.default,
       borderWidth: 1,
       borderRadius: theme.radius.sm,
       paddingHorizontal: theme.spacing.sm,
@@ -43,14 +45,14 @@ function createStyles(theme: FinTrackTheme) {
     },
     syncText: {
       ...theme.typography.caption,
-      color: theme.colors.accent.green,
+      color: theme.colors.brass.base,
     },
     balanceCard: {
-      backgroundColor: theme.colors.bg.secondary,
+      backgroundColor: theme.colors.surface.raised,
       borderRadius: theme.radius.lg,
       padding: theme.spacing.xl,
       marginBottom: theme.spacing.xl,
-      ...theme.shadows.card,
+      ...theme.shadow.popover,
     },
     balanceLabel: {
       ...theme.typography.label,
@@ -62,16 +64,16 @@ function createStyles(theme: FinTrackTheme) {
       color: theme.colors.text.primary,
     },
     sectionTitle: {
-      ...theme.typography.h3,
+      ...theme.typography.subheading,
       color: theme.colors.text.primary,
       marginBottom: theme.spacing.md,
     },
     placeholderCard: {
-      backgroundColor: theme.colors.bg.secondary,
+      backgroundColor: theme.colors.surface.raised,
       borderRadius: theme.radius.md,
       padding: theme.spacing.lg,
       borderWidth: 1,
-      borderColor: theme.colors.border.default,
+      borderColor: theme.colors.rule.default,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: theme.spacing.lg,
@@ -82,7 +84,7 @@ function createStyles(theme: FinTrackTheme) {
       textAlign: 'center',
     },
     logoutButton: {
-      borderColor: theme.colors.border.strong,
+      borderColor: theme.colors.rule.strong,
       borderWidth: 1,
       borderRadius: theme.radius.md,
       paddingVertical: theme.spacing.md,
@@ -91,7 +93,7 @@ function createStyles(theme: FinTrackTheme) {
     },
     logoutText: {
       ...theme.typography.button,
-      color: theme.colors.accent.red,
+      color: theme.colors.state.danger,
     },
   });
 }

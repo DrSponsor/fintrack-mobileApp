@@ -1,6 +1,32 @@
+/**
+ * Font asset downloader.
+ *
+ * IMPORTANT — why these URLs point where they do:
+ *
+ * The previous version of this script pointed every Plus Jakarta Sans weight
+ * at google/fonts' `PlusJakartaSans[wght].ttf`, and both JetBrains Mono weights
+ * at `JetBrainsMono[wght].ttf`. Those are VARIABLE fonts, so all five "weights"
+ * were downloaded as byte-identical files under different names. React Native
+ * on Android cannot select a variable-font instance by axis, so every weight
+ * rendered at the font's default instance — the app's entire typographic
+ * hierarchy was silently flat. Bold headings were not bold.
+ *
+ * Static instances are therefore mandatory here. google/fonts only ships the
+ * variable builds for these two families, so Plus Jakarta Sans comes from its
+ * upstream repo (tokotype) and JetBrains Mono from JetBrains' own repo, both of
+ * which publish real per-weight static TTFs. Instrument Serif is genuinely a
+ * two-style family (Regular + Italic, no variable axis), so google/fonts is the
+ * correct source for it.
+ *
+ * The verification pass at the end fails the script if any two files come out
+ * identical, so this class of bug cannot silently return.
+ */
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+// Named to avoid shadowing Node's `crypto` global, which is WebCrypto and has
+// no createHash.
+const nodeCrypto = require('node:crypto');
 
 const fontsDir = path.join(__dirname, '..', 'assets', 'fonts');
 
@@ -8,78 +34,117 @@ if (!fs.existsSync(fontsDir)) {
   fs.mkdirSync(fontsDir, { recursive: true });
 }
 
-// Direct raw GitHub URLs from official font repositories (tokotype/PlusJakartaSans & JetBrains/JetBrainsMono)
+const PJS = 'https://raw.githubusercontent.com/tokotype/PlusJakartaSans/master/fonts/ttf';
+const JBM = 'https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/ttf';
+const GF = 'https://raw.githubusercontent.com/google/fonts/main/ofl';
+
 const fonts = [
-  {
-    target: 'PlusJakartaSans-Regular.ttf',
-    url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/plusjakartasans/PlusJakartaSans%5Bwght%5D.ttf',
-  },
-  {
-    target: 'PlusJakartaSans-Medium.ttf',
-    url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/plusjakartasans/PlusJakartaSans%5Bwght%5D.ttf',
-  },
-  {
-    target: 'PlusJakartaSans-SemiBold.ttf',
-    url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/plusjakartasans/PlusJakartaSans%5Bwght%5D.ttf',
-  },
-  {
-    target: 'PlusJakartaSans-Bold.ttf',
-    url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/plusjakartasans/PlusJakartaSans%5Bwght%5D.ttf',
-  },
-  {
-    target: 'PlusJakartaSans-ExtraBold.ttf',
-    url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/plusjakartasans/PlusJakartaSans%5Bwght%5D.ttf',
-  },
-  {
-    target: 'JetBrainsMono-Regular.ttf',
-    url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf',
-  },
-  {
-    target: 'JetBrainsMono-Medium.ttf',
-    url: 'https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf',
-  },
+  // UI workhorse — static instances, one file per weight.
+  { target: 'PlusJakartaSans-Regular.ttf', url: `${PJS}/PlusJakartaSans-Regular.ttf` },
+  { target: 'PlusJakartaSans-Medium.ttf', url: `${PJS}/PlusJakartaSans-Medium.ttf` },
+  { target: 'PlusJakartaSans-SemiBold.ttf', url: `${PJS}/PlusJakartaSans-SemiBold.ttf` },
+  { target: 'PlusJakartaSans-Bold.ttf', url: `${PJS}/PlusJakartaSans-Bold.ttf` },
+  { target: 'PlusJakartaSans-ExtraBold.ttf', url: `${PJS}/PlusJakartaSans-ExtraBold.ttf` },
+
+  // Technical content only — account numbers, reference IDs, timestamps.
+  { target: 'JetBrainsMono-Regular.ttf', url: `${JBM}/JetBrainsMono-Regular.ttf` },
+  { target: 'JetBrainsMono-Medium.ttf', url: `${JBM}/JetBrainsMono-Medium.ttf` },
+
+  // Display face — hero amounts and screen titles.
+  { target: 'InstrumentSerif-Regular.ttf', url: `${GF}/instrumentserif/InstrumentSerif-Regular.ttf` },
+  { target: 'InstrumentSerif-Italic.ttf', url: `${GF}/instrumentserif/InstrumentSerif-Italic.ttf` },
 ];
 
-function downloadFile(url, dest) {
+function downloadFile(url, dest, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
-    https.get(url, (response) => {
-      if (response.statusCode === 301 || response.statusCode === 302) {
-        return downloadFile(response.headers.location, dest).then(resolve).catch(reject);
-      }
-      if (response.statusCode !== 200) {
-        return reject(new Error(`Status code ${response.statusCode}`));
-      }
-      const file = fs.createWriteStream(dest);
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close(resolve);
+    https
+      .get(url, (response) => {
+        const { statusCode, headers } = response;
+
+        if (statusCode === 301 || statusCode === 302 || statusCode === 307 || statusCode === 308) {
+          response.resume();
+          if (redirectsLeft === 0) {
+            return reject(new Error('Too many redirects'));
+          }
+          return downloadFile(headers.location, dest, redirectsLeft - 1).then(resolve).catch(reject);
+        }
+
+        if (statusCode !== 200) {
+          response.resume();
+          return reject(new Error(`Status code ${statusCode}`));
+        }
+
+        const file = fs.createWriteStream(dest);
+        response.pipe(file);
+        // Only resolve once the bytes are actually flushed to disk — `finish`
+        // alone can fire before close on some platforms.
+        file.on('finish', () => file.close(() => resolve()));
+        file.on('error', (err) => {
+          fs.unlink(dest, () => reject(err));
+        });
+      })
+      .on('error', (err) => {
+        fs.unlink(dest, () => reject(err));
       });
-    }).on('error', (err) => {
-      fs.unlink(dest, () => {});
-      reject(err);
-    });
   });
 }
 
+function hashFile(filePath) {
+  return nodeCrypto.createHash('md5').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+/**
+ * Guards against the variable-font regression described in the header: if two
+ * targets resolve to identical bytes, the weight hierarchy is broken even
+ * though every download "succeeded".
+ */
+function verifyDistinct() {
+  const byHash = new Map();
+
+  for (const font of fonts) {
+    const filePath = path.join(fontsDir, font.target);
+    if (!fs.existsSync(filePath)) continue;
+    const hash = hashFile(filePath);
+    if (!byHash.has(hash)) byHash.set(hash, []);
+    byHash.get(hash).push(font.target);
+  }
+
+  const collisions = [...byHash.values()].filter((group) => group.length > 1);
+  if (collisions.length === 0) {
+    console.log('\n✅ Verified: every font file is distinct.');
+    return true;
+  }
+
+  console.error('\n❌ Identical font files detected — the weight hierarchy would be broken:');
+  for (const group of collisions) {
+    console.error(`   ${group.join('  ==  ')}`);
+  }
+  console.error('\n   These are almost certainly variable-font builds. Point the URLs at');
+  console.error('   static per-weight instances instead. See this file\'s header comment.');
+  return false;
+}
+
 async function downloadAll() {
-  console.log('📦 Downloading FinTrack font assets from Google Fonts GitHub repository...\n');
+  console.log('Downloading font assets...\n');
   let successCount = 0;
+
   for (const font of fonts) {
     const filePath = path.join(fontsDir, font.target);
     try {
-      console.log(`⬇️ Downloading ${font.target}...`);
       await downloadFile(font.url, filePath);
-      const stats = fs.statSync(filePath);
-      console.log(`✅ Saved to assets/fonts/${font.target} (${(stats.size / 1024).toFixed(1)} KB)`);
+      const { size } = fs.statSync(filePath);
+      console.log(`  ${font.target.padEnd(34)} ${(size / 1024).toFixed(1)} KB`);
       successCount++;
     } catch (error) {
-      console.error(`❌ Error downloading ${font.target}:`, error.message);
+      console.error(`  ${font.target.padEnd(34)} FAILED — ${error.message}`);
     }
   }
-  if (successCount === fonts.length) {
-    console.log('\n✨ All font assets downloaded successfully!');
-  } else {
-    console.log(`\n⚠️ Downloaded ${successCount}/${fonts.length} fonts.`);
+
+  console.log(`\nDownloaded ${successCount}/${fonts.length} fonts.`);
+
+  const distinct = verifyDistinct();
+  if (successCount !== fonts.length || !distinct) {
+    process.exitCode = 1;
   }
 }
 

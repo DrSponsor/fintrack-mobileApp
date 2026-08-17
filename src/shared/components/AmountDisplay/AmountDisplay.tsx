@@ -25,10 +25,17 @@ export function AmountDisplay({ amountKobo, style, isHero = false }: AmountDispl
   const { theme } = useTheme();
   const formattedString = formatKoboToNaira(amountKobo);
   
+  // Spread the whole token, not just fontFamily: the size, leading, optical
+  // tracking and tabular figures are all part of the style and are what keep
+  // digit columns from shifting as values change.
+  //
+  // Deliberately NOT the `technical` (JetBrains Mono) token — that face is for
+  // account numbers and reference IDs. Setting currency in a code font makes
+  // money look like terminal output. See typography.ts.
   const styles = StyleSheet.create({
     amount: {
       color: theme.colors.text.primary,
-      fontFamily: isHero ? theme.typography.monoDisplay.fontFamily : theme.typography.mono.fontFamily,
+      ...(isHero ? theme.typography.monument : theme.typography.amountRow),
     },
   });
 

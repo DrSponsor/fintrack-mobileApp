@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useTheme } from '@/design-system/ThemeProvider';
 import { House, Receipt, ChartBar, Wallet, Gear } from 'phosphor-react-native';
@@ -10,16 +11,21 @@ export default function AppLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: theme.colors.accent.green,
-        tabBarInactiveTintColor: theme.colors.text.secondary,
+        // Transparent so the Material layer reads through the tab scenes.
+        sceneStyle: { backgroundColor: 'transparent' },
+        tabBarActiveTintColor: theme.colors.brass.base,
+        tabBarInactiveTintColor: theme.colors.text.tertiary,
         tabBarStyle: {
-          backgroundColor: theme.colors.bg.secondary,
-          borderTopColor: theme.colors.border.default,
-          elevation: 8,
-          shadowOpacity: 0.1,
-          height: 60,
+          // A hairline top rule instead of a shadow — on a near-black ground a
+          // drop shadow reads as smudge, while the lit edge reads as a plane.
+          backgroundColor: theme.colors.surface.raised,
+          borderTopColor: theme.colors.rule.edge,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          elevation: 0,
+          shadowOpacity: 0,
+          height: 62,
           paddingBottom: theme.spacing.sm,
-          paddingTop: theme.spacing.xs,
+          paddingTop: theme.spacing.sm,
         },
         tabBarLabelStyle: {
           ...theme.typography.label,
