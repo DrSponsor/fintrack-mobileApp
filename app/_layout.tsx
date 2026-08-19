@@ -7,6 +7,7 @@ import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { database } from '@/core/database/database';
 import { ThemeProvider } from '@/design-system/ThemeProvider';
 import { fontAssets } from '@/design-system/typography';
+import { colors } from '@/design-system/tokens';
 import { useUIStore } from '@/core/store/ui.store';
 import { useAuthStore } from '@/core/store/auth.store';
 import { TokenManager } from '@/core/security/TokenManager';
@@ -27,6 +28,25 @@ export default function RootLayout() {
   const setThemePreference = useUIStore((state) => state.setThemePreference);
 
   const [fontsLoaded, fontError] = useFonts(fontAssets);
+
+  // Font loading failure MUST be loud in development.
+  //
+  // The app deliberately still renders when fonts fail (below) — shipping a
+  // blank screen because a typeface did not load would be worse. But that means
+  // a failure degrades silently to Roboto, and every custom weight, the optical
+  // tracking and the whole typographic hierarchy vanish with no error anywhere.
+  // That is indistinguishable from "the design is just plain", which is exactly
+  // the wrong thing to be unable to tell apart.
+  useEffect(() => {
+    if (!__DEV__) return;
+    if (fontError) {
+      console.error('[fonts] FAILED TO LOAD — falling back to system font:', fontError);
+      return;
+    }
+    if (fontsLoaded) {
+      console.log(`[fonts] loaded ${Object.keys(fontAssets).length} families:`, Object.keys(fontAssets).join(', '));
+    }
+  }, [fontsLoaded, fontError]);
 
   // Initialize Sentry and PostHog after mount (non-blocking)
   useEffect(() => {
@@ -83,6 +103,7 @@ function AppContent() {
   const setLoading = useAuthStore((state) => state.setLoading);
   const markAuthenticated = useAuthStore((state) => state.markAuthenticated);
   const logout = useAuthStore((state) => state.logout);
+  const hasCompletedOnboarding = useUIStore((state) => state.hasCompletedOnboarding);
 
   const segments = useSegments();
   const router = useRouter();
@@ -137,18 +158,29 @@ function AppContent() {
     checkAuth();
   }, [setUser, logout, setLoading, markAuthenticated]);
 
-  // Navigation guard — redirect based on auth state
+  // Navigation guard — redirect based on auth and onboarding state
   useEffect(() => {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const onOnboarding = segments[1] === 'onboarding';
 
-    if (!isLoggedIn && !inAuthGroup) {
-      router.replace('/(auth)/welcome');
-    } else if (isLoggedIn && inAuthGroup) {
+    if (isLoggedIn && inAuthGroup) {
       router.replace('/(app)');
+      return;
     }
-  }, [isLoggedIn, isLoading, segments, router]);
+    if (isLoggedIn) return;
+
+    // Signed out. First launch gets onboarding; after that, straight to
+    // welcome. Guarding on `onOnboarding` keeps this effect from fighting the
+    // screen's own "Skip" navigation, which fires before the flag has
+    // propagated back through the store.
+    if (!hasCompletedOnboarding && !onOnboarding) {
+      router.replace('/(auth)/onboarding');
+    } else if (hasCompletedOnboarding && !inAuthGroup) {
+      router.replace('/(auth)/welcome');
+    }
+  }, [isLoggedIn, isLoading, hasCompletedOnboarding, segments, router]);
 
   if (isLoading) {
     return (
@@ -177,9 +209,12 @@ function AppContent() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    // Hardcoded rather than themed: this renders above ThemeProvider in the
-    // tree, so useTheme() is unavailable here. Must stay in sync with
-    // colors.surface.base and the splash backgroundColor in app.config.ts.
-    backgroundColor: '#080B12',
+    // Imported from the token module rather than via useTheme(): this renders
+    // ABOVE ThemeProvider, so the hook is unavailable — but `colors` is a plain
+    // module export, so the value itself is still reachable. It was previously
+    // a hardcoded hex with a comment asking future readers to keep it in sync
+    // by hand, which is a promise nobody keeps. app.config.ts still duplicates
+    // it because that file is evaluated outside the bundle.
+    backgroundColor: colors.surface.base,
   },
 });

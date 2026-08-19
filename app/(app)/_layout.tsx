@@ -2,7 +2,13 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useTheme } from '@/design-system/ThemeProvider';
-import { House, Receipt, ChartBar, Wallet, Gear } from 'phosphor-react-native';
+import {
+  IconHome,
+  IconLedger,
+  IconAnalysis,
+  IconBudget,
+  IconSettings,
+} from '@/design-system/icons/Icon';
 
 export default function AppLayout() {
   const { theme } = useTheme();
@@ -13,7 +19,7 @@ export default function AppLayout() {
         headerShown: false,
         // Transparent so the Material layer reads through the tab scenes.
         sceneStyle: { backgroundColor: 'transparent' },
-        tabBarActiveTintColor: theme.colors.brass.base,
+        tabBarActiveTintColor: theme.colors.action.base,
         tabBarInactiveTintColor: theme.colors.text.tertiary,
         tabBarStyle: {
           // A hairline top rule instead of a shadow — on a near-black ground a
@@ -37,35 +43,35 @@ export default function AppLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <House color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => <IconHome color={color} size={size} weight={focused ? 2.2 : 1.75} />,
         }}
       />
       <Tabs.Screen
         name="transactions/index"
         options={{
           title: 'Transactions',
-          tabBarIcon: ({ color, size }) => <Receipt color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => <IconLedger color={color} size={size} weight={focused ? 2.2 : 1.75} />,
         }}
       />
       <Tabs.Screen
         name="analysis/index"
         options={{
           title: 'Analysis',
-          tabBarIcon: ({ color, size }) => <ChartBar color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => <IconAnalysis color={color} size={size} weight={focused ? 2.2 : 1.75} />,
         }}
       />
       <Tabs.Screen
         name="budgets/index"
         options={{
           title: 'Budgets',
-          tabBarIcon: ({ color, size }) => <Wallet color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => <IconBudget color={color} size={size} weight={focused ? 2.2 : 1.75} />,
         }}
       />
       <Tabs.Screen
         name="settings/index"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Gear color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => <IconSettings color={color} size={size} weight={focused ? 2.2 : 1.75} />,
         }}
       />
       <Tabs.Screen

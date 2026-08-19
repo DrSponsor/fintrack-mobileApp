@@ -39,16 +39,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // android/gradle.properties (newArchEnabled) and database.ts (jsi flag).
   newArchEnabled: false,
 
+  // NOTE: these three colours are baked into the native project, so they are
+  // duplicated from src/design-system/tokens.ts rather than imported — this
+  // file is evaluated by the Expo CLI at build time, outside the app bundle.
+  // If the palette moves, they move with it. A stale splash colour is not a
+  // cosmetic detail: it is the first thing every launch shows.
   splash: {
     image: './assets/splash-icon.png',
     resizeMode: 'contain',
-    backgroundColor: '#0F0F11',
+    // colors.surface.base
+    backgroundColor: '#080B12',
   },
 
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#0F0F11',
+      // colors.surface.base
+      backgroundColor: '#080B12',
     },
     package: getBundleId(),
     permissions: [
@@ -78,7 +85,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-notifications',
       {
         icon: './assets/notification-icon.png',
-        color: '#1D9E75',
+        // colors.money.inbound. The previous value was the retired brand green,
+        // which exists nowhere in the palette any more.
+        color: '#46A883',
       },
     ],
     [

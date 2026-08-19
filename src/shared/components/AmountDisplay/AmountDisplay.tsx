@@ -29,9 +29,10 @@ export function AmountDisplay({ amountKobo, style, isHero = false }: AmountDispl
   // tracking and tabular figures are all part of the style and are what keep
   // digit columns from shifting as values change.
   //
-  // Deliberately NOT the `technical` (JetBrains Mono) token — that face is for
-  // account numbers and reference IDs. Setting currency in a code font makes
-  // money look like terminal output. See typography.ts.
+  // Both money tokens are monospaced. That is the point — a column of amounts
+  // has to align on the naira mark, the thousands separators and the kobo, and
+  // the mono steps are tracked and sized specifically for currency rather than
+  // reused from the metadata scale. See typography.ts.
   const styles = StyleSheet.create({
     amount: {
       color: theme.colors.text.primary,
