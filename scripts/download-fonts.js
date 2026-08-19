@@ -14,9 +14,12 @@
  * Static instances are therefore mandatory here. google/fonts only ships the
  * variable builds for these two families, so Plus Jakarta Sans comes from its
  * upstream repo (tokotype) and JetBrains Mono from JetBrains' own repo, both of
- * which publish real per-weight static TTFs. Instrument Serif is genuinely a
- * two-style family (Regular + Italic, no variable axis), so google/fonts is the
- * correct source for it.
+ * which publish real per-weight static TTFs.
+ *
+ * Two families only, by decision: Plus Jakarta Sans sets everything that is
+ * language, JetBrains Mono sets everything that is a number. A third display
+ * face was tried and cut — the contrast that carries this design comes from
+ * proportional-vs-monospaced, not from adding typefaces.
  *
  * The verification pass at the end fails the script if any two files come out
  * identical, so this class of bug cannot silently return.
@@ -36,7 +39,7 @@ if (!fs.existsSync(fontsDir)) {
 
 const PJS = 'https://raw.githubusercontent.com/tokotype/PlusJakartaSans/master/fonts/ttf';
 const JBM = 'https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/ttf';
-const GF = 'https://raw.githubusercontent.com/google/fonts/main/ofl';
+// (Instrument Serif removed — the display face is now Plus Jakarta Sans ExtraBold.)
 
 const fonts = [
   // UI workhorse — static instances, one file per weight.
@@ -46,13 +49,14 @@ const fonts = [
   { target: 'PlusJakartaSans-Bold.ttf', url: `${PJS}/PlusJakartaSans-Bold.ttf` },
   { target: 'PlusJakartaSans-ExtraBold.ttf', url: `${PJS}/PlusJakartaSans-ExtraBold.ttf` },
 
-  // Technical content only — account numbers, reference IDs, timestamps.
+  // Every number in the app — amounts, balances, percentages, account numbers,
+  // reference IDs, timestamps. The full weight range is needed because monospace
+  // now has to carry a 56px hero balance as well as 11px metadata, and Regular
+  // at hero size looks anaemic.
   { target: 'JetBrainsMono-Regular.ttf', url: `${JBM}/JetBrainsMono-Regular.ttf` },
   { target: 'JetBrainsMono-Medium.ttf', url: `${JBM}/JetBrainsMono-Medium.ttf` },
-
-  // Display face — hero amounts and screen titles.
-  { target: 'InstrumentSerif-Regular.ttf', url: `${GF}/instrumentserif/InstrumentSerif-Regular.ttf` },
-  { target: 'InstrumentSerif-Italic.ttf', url: `${GF}/instrumentserif/InstrumentSerif-Italic.ttf` },
+  { target: 'JetBrainsMono-SemiBold.ttf', url: `${JBM}/JetBrainsMono-SemiBold.ttf` },
+  { target: 'JetBrainsMono-Bold.ttf', url: `${JBM}/JetBrainsMono-Bold.ttf` },
 ];
 
 function downloadFile(url, dest, redirectsLeft = 5) {

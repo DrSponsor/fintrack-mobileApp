@@ -1,20 +1,29 @@
 /**
  * Typography — the "Ledger" design language.
  *
- * Three voices, each with one job:
+ * TWO families, and the split between them is semantic, not decorative:
  *
- *   DISPLAY    Instrument Serif — hero amounts and screen titles. A high-
- *              contrast serif evokes engraved banknotes and certificates, and
- *              almost no finance app uses one. It is the single decision that
- *              does most to stop the interface reading as a template.
+ *   LANGUAGE   Plus Jakarta Sans — anything a person reads as words. Headlines
+ *              run at ExtraBold with hard negative tracking, which is where the
+ *              display personality now comes from: scale and weight contrast
+ *              rather than a third typeface.
  *
- *   UI         Plus Jakarta Sans — everything interactive and everything read
- *              in bulk. Neutral on purpose: the display face carries the
- *              personality so the workhorse doesn't have to.
+ *   NUMBER     JetBrains Mono — every figure in the app without exception.
+ *              Amounts, balances, percentages, dates, account numbers,
+ *              reference IDs.
  *
- *   TECHNICAL  JetBrains Mono — account numbers, reference IDs, timestamps.
- *              Deliberately NOT used for money. It is a code face, and setting
- *              currency in it makes money look like terminal output.
+ * ── Why every number is monospaced ────────────────────────────────────────
+ * A ledger's whole job is comparison down a column, and that only works when
+ * digits occupy identical widths — ₦12,500 and ₦98,300 must align on the naira,
+ * the comma and the kobo. Proportional figures break that alignment even with
+ * tabular-nums, because the currency mark and separators still shift.
+ *
+ * Setting numbers in a code face is a real trade: it costs some warmth, and it
+ * only works if the surrounding language face is genuinely warm and the sizes
+ * are tuned per-context rather than reused from the code defaults. That tuning
+ * is the `Number voice` block below. The payoff is that the app's most-read
+ * element gets its own unmistakable voice, and money stops looking like body
+ * copy that happens to contain digits.
  *
  * ── Two corrections baked into this file ──────────────────────────────────
  *
@@ -38,19 +47,18 @@
 import { TextStyle } from 'react-native';
 
 export const fontFamilies = {
-  /** Instrument Serif — Regular and Italic only. The family has no bold, which
-   *  is correct: at display sizes a high-contrast serif does not need one. */
-  display: 'InstrumentSerif-Regular',
-  displayItalic: 'InstrumentSerif-Italic',
-
+  // Language.
   regular: 'PlusJakartaSans-Regular',
   medium: 'PlusJakartaSans-Medium',
   semiBold: 'PlusJakartaSans-SemiBold',
   bold: 'PlusJakartaSans-Bold',
   extraBold: 'PlusJakartaSans-ExtraBold',
 
+  // Number.
   mono: 'JetBrainsMono-Regular',
   monoMedium: 'JetBrainsMono-Medium',
+  monoSemiBold: 'JetBrainsMono-SemiBold',
+  monoBold: 'JetBrainsMono-Bold',
 } as const;
 
 /** Applied to every style that can contain a figure that changes. Keeps digit
@@ -59,34 +67,48 @@ export const fontFamilies = {
 const tabular: Pick<TextStyle, 'fontVariant'> = { fontVariant: ['tabular-nums'] };
 
 export const typography = {
-  // ── Display voice ───────────────────────────────────────────────────────
+  // ── Number voice ────────────────────────────────────────────────────────
+  // JetBrains Mono. Tracking is *negative and steep* here, unlike the code
+  // editor defaults this face ships with: monospace sets every glyph on a wide
+  // uniform advance, which at 56px leaves gaps you could park a car in. Pulling
+  // it in hard is what turns a code face into a display face.
 
-  /** 64 / −3% — the balance hero. Leading is set to 1.0: monumental numbers
-   *  want the line box tight around them. */
+  /** 56 — the balance hero. Leading at 1.0 so the line box grips the figures. */
   monument: {
-    fontFamily: fontFamilies.display,
-    fontSize: 64,
-    lineHeight: 64,
-    letterSpacing: -1.92,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 56,
+    lineHeight: 56,
+    letterSpacing: -3.36,
     ...tabular,
   },
 
-  /** 40 / −2% — secondary large amounts and full-bleed moments. */
+  /** 34 — secondary large figures: gauge readouts, statement totals. */
+  amountDisplay: {
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 34,
+    lineHeight: 38,
+    letterSpacing: -1.7,
+    ...tabular,
+  },
+
+  // ── Language voice ──────────────────────────────────────────────────────
+  // Plus Jakarta Sans ExtraBold, tracked tight. The personality at display size
+  // comes from weight and negative tracking, not from a separate face.
+
+  /** 38 — headlines and full-bleed moments. */
   display: {
-    fontFamily: fontFamilies.display,
-    fontSize: 40,
-    lineHeight: 44,
-    letterSpacing: -0.8,
-    ...tabular,
+    fontFamily: fontFamilies.extraBold,
+    fontSize: 38,
+    lineHeight: 43,
+    letterSpacing: -1.14,
   },
 
-  /** 28 / −1.5% — screen titles. Gives every screen an editorial masthead
-   *  rather than a bold sans header. */
+  /** 26 — screen titles. */
   title: {
-    fontFamily: fontFamilies.display,
-    fontSize: 28,
-    lineHeight: 34,
-    letterSpacing: -0.42,
+    fontFamily: fontFamilies.bold,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: -0.52,
   },
 
   // ── UI voice ────────────────────────────────────────────────────────────
@@ -180,33 +202,51 @@ export const typography = {
     ...tabular,
   },
 
-  // ── Money ───────────────────────────────────────────────────────────────
-  // Separate from the scale above because amounts are the most-read element in
-  // the app and deserve their own tuned steps. All tabular.
-
-  /** Ledger row amounts — the right-aligned column. */
-  amountRow: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 16,
+  /** 15 — what the user types into a credential field: email addresses,
+   *  passwords, one-time codes.
+   *
+   *  Set in the number face on purpose. An email address is an *identifier*,
+   *  not language — nobody reads it for meaning, they check it character by
+   *  character — and monospace is what makes that check easy: `rn` stops
+   *  looking like `m`, `0` stops looking like `O`, and a stray space at the end
+   *  becomes visible. It also gives the auth screens a texture that no boxed
+   *  sans-serif form has, which is the point. */
+  credential: {
+    fontFamily: fontFamilies.mono,
+    fontSize: 15,
     lineHeight: 22,
-    letterSpacing: -0.08,
+    letterSpacing: -0.15,
+    ...tabular,
+  },
+
+  // ── Money ───────────────────────────────────────────────────────────────
+  // Amounts are the most-read element in the app, so they get their own tuned
+  // steps rather than borrowing from the scale above. Monospaced, so a column
+  // of them aligns on the naira mark, the thousands separators and the kobo.
+
+  /** Ledger row amounts — the right-aligned column. Slightly smaller than the
+   *  15px body it sits beside: monospace runs optically larger at equal point
+   *  size, and matching the numbers to the label size makes the numbers shout. */
+  amountRow: {
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 14,
+    lineHeight: 22,
+    letterSpacing: -0.28,
     ...tabular,
   },
 
   /** Amounts inline in a sentence. */
   amountInline: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
+    fontFamily: fontFamilies.monoMedium,
+    fontSize: 13.5,
     lineHeight: 22,
-    letterSpacing: 0,
+    letterSpacing: -0.14,
     ...tabular,
   },
 } as const;
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 export const fontAssets = {
-  'InstrumentSerif-Regular': require('../../assets/fonts/InstrumentSerif-Regular.ttf'),
-  'InstrumentSerif-Italic': require('../../assets/fonts/InstrumentSerif-Italic.ttf'),
   'PlusJakartaSans-Regular': require('../../assets/fonts/PlusJakartaSans-Regular.ttf'),
   'PlusJakartaSans-Medium': require('../../assets/fonts/PlusJakartaSans-Medium.ttf'),
   'PlusJakartaSans-SemiBold': require('../../assets/fonts/PlusJakartaSans-SemiBold.ttf'),
@@ -214,5 +254,7 @@ export const fontAssets = {
   'PlusJakartaSans-ExtraBold': require('../../assets/fonts/PlusJakartaSans-ExtraBold.ttf'),
   'JetBrainsMono-Regular': require('../../assets/fonts/JetBrainsMono-Regular.ttf'),
   'JetBrainsMono-Medium': require('../../assets/fonts/JetBrainsMono-Medium.ttf'),
+  'JetBrainsMono-SemiBold': require('../../assets/fonts/JetBrainsMono-SemiBold.ttf'),
+  'JetBrainsMono-Bold': require('../../assets/fonts/JetBrainsMono-Bold.ttf'),
 } as const;
 /* eslint-enable @typescript-eslint/no-require-imports */
