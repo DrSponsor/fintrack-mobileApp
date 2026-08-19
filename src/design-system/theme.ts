@@ -1,8 +1,8 @@
 /**
  * Theme — the "Ledger" design language.
  *
- * Dark-only, by decision. The palette, the material layer (grain, atmosphere,
- * bloom) and the elevation model are all built specifically for a near-black
+ * Dark-only, by decision. The palette, the material layer (the atmospheric
+ * wash) and the elevation model are all built specifically for a near-black
  * chromatic ground; a light theme is not a recolour of this one, it is a
  * separate design problem. Shipping a half-considered light mode is a reliable
  * way to look cheap, so it is deferred to its own pass rather than stubbed.

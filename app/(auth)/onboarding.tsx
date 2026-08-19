@@ -343,7 +343,7 @@ function createStyles(theme: AppTheme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      // The root Material layer owns the ground, atmosphere and grain.
+      // The root Material layer owns the ground and the atmospheric wash.
       backgroundColor: 'transparent',
     },
     topBar: {

@@ -68,9 +68,9 @@ export default function RootLayout() {
     <ErrorBoundary level="global">
       <DatabaseProvider database={database}>
         <ThemeProvider preference={themePreference} onPreferenceChange={setThemePreference}>
-          {/* Owns the app's ground colour, the atmospheric light wash behind
-              content and the film grain over it. Every screen below renders on
-              a transparent background so all three stay visible. */}
+          {/* Owns the app's ground colour and the atmospheric light wash behind
+              content. Every screen below renders on a transparent background so
+              the wash stays visible. */}
           <Material>
             <AppContent />
           </Material>

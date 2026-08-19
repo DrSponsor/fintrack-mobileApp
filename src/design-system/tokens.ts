@@ -319,14 +319,11 @@ export const motion = {
 // texture and atmosphere can be tuned from one place.
 
 export const material = {
-  grain: {
-    /** Film grain opacity. Below ~0.02 it is invisible; above ~0.05 it reads as
-     *  noise rather than texture. */
-    opacity: 0.035,
-    /** Fractal-noise frequency. Higher is finer. */
-    frequency: 0.8,
-    octaves: 3,
-  },
+  // NOTE: there is no `grain` here any more. Film grain was tried at 0.035 and
+  // again retuned to 0.06/0.35, judged on a real device both times, and removed
+  // — imperceptible at phone size, and paying full fill rate for it every frame
+  // was not a trade worth making. See material/Material.tsx for the full
+  // account. Do not reintroduce it without measuring on hardware first.
   atmosphere: {
     /** Peak opacity of the radial light-source wash behind hero areas. */
     opacity: 0.5,

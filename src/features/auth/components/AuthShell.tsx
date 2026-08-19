@@ -143,7 +143,7 @@ function createStyles(theme: AppTheme) {
     page: {
       flex: 1,
       // Transparent: the Material layer at the root owns the ground colour,
-      // the atmospheric wash and the grain.
+      // the atmospheric wash.
       backgroundColor: 'transparent',
     },
     content: {
