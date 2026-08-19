@@ -7,11 +7,13 @@
  *
  * ── The two rules that carry most of the quality ──────────────────────────
  *
- * 1. BRASS IS NEVER USED FOR MONEY SEMANTICS. Brass means "action" and "brand".
- *    Jade and clay mean "direction of money". Most finance apps collapse these
- *    (the brand green doubles as the income colour) and it is exactly why their
- *    screens read muddy — the eye cannot tell "you can tap this" apart from
- *    "you received this".
+ * 1. COLOUR IS RESERVED FOR MONEY. There is no brand accent anywhere in this
+ *    interface. Actions are paper-white, the ground and text are neutral, and
+ *    the only chroma on screen is jade (money in), clay (money out) and the
+ *    category hues inside a breakdown. Most finance apps give the brand a
+ *    colour and then have to share it with income or alerts, which is exactly
+ *    why their screens read muddy — the eye cannot tell "you can tap this"
+ *    apart from "you received this". Here, if it has colour, it is money.
  *
  * 2. ELEVATION IS A HAIRLINE, NOT A SHADOW. On a near-black ground a drop
  *    shadow is close to invisible and mostly reads as smudge. Raised surfaces
@@ -47,21 +49,34 @@ const surface = {
   lifted: '#1E2539',
 } as const;
 
-// ── Brass ─────────────────────────────────────────────────────────────────
-// The single warm element on screen, which is precisely why it owns attention.
-// Hue ~39° throughout. Contrast of `base` on surface.base is 8.75:1.
+// ── Action ────────────────────────────────────────────────────────────────
+// THE RULE THAT DEFINES THIS INTERFACE: colour is reserved for money. Nothing
+// else is allowed to be coloured — not the primary button, not the brand mark,
+// not the active tab, not a focus ring.
+//
+// This replaced a brass/gold accent. Warm gold on near-black is the single most
+// generated-looking combination in software right now, and more importantly a
+// brand accent competes with the money colours for the eye: if the button, the
+// logo and an income figure are all warm, the user has to *read* to find out
+// which one is telling them something about their money.
+//
+// So actions are paper. A warm off-white against the cool indigo ground reads
+// as a printed slip laid on a dark desk — the temperature contrast does the
+// work a hue would normally do, and leaves the entire chromatic range free to
+// mean exactly one thing.
 
-const brass = {
-  /** Primary action and brand. */
-  base: '#D9A441',
-  /** Highlight, bloom, and the lit edge of a pressed control. */
-  glow: '#F0C878',
-  /** Pressed / active state. */
-  deep: '#A87B2C',
-  /** Tinted fill behind brass content. */
-  wash: 'rgba(217, 164, 65, 0.10)',
-  /** Slightly stronger tint for selected rows. */
-  washStrong: 'rgba(217, 164, 65, 0.16)',
+const action = {
+  /** Primary action surface, and the brand mark. Warm (~40° at 8% sat) against
+   *  a cool ground, which is what stops it reading as plain grey. */
+  base: '#F0EDE6',
+  /** Pressed. */
+  deep: '#CFCAC0',
+  /** Text and icons ON an action surface. */
+  on: '#0A0D14',
+  /** Tinted fill behind a selected/active row. Neutral, so it never competes
+   *  with an amount sitting in the same row. */
+  wash: 'rgba(240, 237, 230, 0.07)',
+  washStrong: 'rgba(240, 237, 230, 0.12)',
 } as const;
 
 // ── Money ─────────────────────────────────────────────────────────────────
@@ -93,7 +108,7 @@ const text = {
   /** Disabled controls only — exempt from contrast minimums, and must never
    *  carry information that exists nowhere else. */
   disabled: '#454B5E',
-  /** On brass and other light fills. */
+  /** On action surfaces and other light fills. */
   inverse: '#080B12',
 } as const;
 
@@ -110,16 +125,16 @@ const rule = {
   default: 'rgba(255, 255, 255, 0.09)',
   /** Emphasis, input borders. */
   strong: 'rgba(255, 255, 255, 0.16)',
-  /** Focused input, active row. */
-  brass: 'rgba(217, 164, 65, 0.35)',
+  /** Focused input, active row. Neutral — see the Action note above. */
+  focus: 'rgba(240, 237, 230, 0.30)',
 } as const;
 
 // ── State ─────────────────────────────────────────────────────────────────
-// Note there is deliberately NO warning amber. Brass already owns the warm
-// gold band (~39°), so an amber warning would be indistinguishable from a
-// primary action. Escalation instead runs jade → clay → danger, which is both
-// unambiguous and semantically right: "spending a lot" and "spending too much"
-// are the same axis, so they should share a hue family.
+// Note there is deliberately NO warning amber. An amber warning would be the
+// only warm hue on screen that is not money, which breaks the rule above.
+// Escalation instead runs jade → clay → danger, which is both unambiguous and
+// semantically right: "spending a lot" and "spending too much" are the same
+// axis, so they should share a hue family.
 
 const state = {
   /** A genuinely hot red, distinct from clay. 4.81:1 on surface.base. */
@@ -137,13 +152,60 @@ const state = {
   successWash: money.inboundWash,
 } as const;
 
+// ── Category identity ─────────────────────────────────────────────────────
+// Category colour is *identity*, not judgement, so this palette is deliberately
+// kept clear of jade (~160°, inbound money) and clay (~14°, outbound), because
+// a category rendering in a money colour would read as "this went well" rather
+// than simply "this is groceries".
+//
+// Used for chips, dots and bars — never as the colour of an amount, which
+// always keeps its money semantics.
+//
+// Jewel-toned rather than pastel: on a near-black indigo ground, pastels turn
+// to mud. All sit around 60-68% lightness so no single category shouts over
+// the others in a breakdown chart.
+
+const category = {
+  violet: '#8B7BD8',
+  blue: '#5B92D4',
+  cyan: '#4FA8B8',
+  lime: '#8FAE58',
+  orange: '#D18A52',
+  rose: '#D06B84',
+  magenta: '#B06BC9',
+  /** Neutral — "Uncategorised" and "Other". Deliberately the dullest, so an
+   *  unsorted transaction never competes with a sorted one. */
+  slate: '#7A8599',
+} as const;
+
+export const categoryPalette = Object.values(category);
+
+/**
+ * Deterministic category → colour. The same id always yields the same hue,
+ * across devices and reinstalls, without needing a colour stored per category.
+ *
+ * FNV-1a rather than a naive `charCodeAt` sum, because summed char codes
+ * collide constantly on the anagram-ish names real categories have
+ * ("Transport"/"Transports"), which would hand two adjacent bars the same hue.
+ */
+export function getCategoryColor(id: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < id.length; i += 1) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  const index = Math.abs(hash) % categoryPalette.length;
+  return categoryPalette[index] ?? category.slate;
+}
+
 export const colors = {
   surface,
-  brass,
+  action,
   money,
   text,
   rule,
   state,
+  category,
   /** Scrims behind modals and sheets. */
   scrim: 'rgba(3, 5, 9, 0.72)',
 } as const;

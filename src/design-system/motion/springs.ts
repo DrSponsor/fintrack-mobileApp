@@ -9,7 +9,7 @@
  * Import these rather than writing spring configs inline, so the whole app's
  * sense of weight can be adjusted from tokens.ts.
  */
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { Easing, type WithSpringConfig, type WithTimingConfig } from 'react-native-reanimated';
 import { motion } from '../tokens';
@@ -41,6 +41,65 @@ export const timing = {
   slow: { duration: motion.duration.slow, easing: easeOut } satisfies WithTimingConfig,
 } as const;
 
+// ── Reduced motion ────────────────────────────────────────────────────────
+//
+// ONE OS subscription for the whole app, shared by every caller.
+//
+// This previously opened a listener per component. That reads as harmless until
+// you count: `Reveal` calls it, and a single screen mounts a dozen Reveals, so
+// the dashboard alone registered about twelve `reduceMotionChanged` listeners
+// plus twelve `isReduceMotionEnabled()` round trips to the native side — and
+// every one of them resolved into its own setState and its own re-render, on
+// mount, on the first screen after login.
+//
+// The state is global to the device, so it belongs in one place. `subscribe`
+// lazily opens the real listener on first use and every consumer shares it.
+
+let reducedMotionEnabled = false;
+let osSubscriptionOpen = false;
+const reducedMotionListeners = new Set<() => void>();
+
+function notifyReducedMotion(): void {
+  reducedMotionListeners.forEach((listener) => listener());
+}
+
+function openOsSubscription(): void {
+  if (osSubscriptionOpen) return;
+  osSubscriptionOpen = true;
+
+  AccessibilityInfo.isReduceMotionEnabled()
+    .then((enabled) => {
+      if (enabled === reducedMotionEnabled) return;
+      reducedMotionEnabled = enabled;
+      notifyReducedMotion();
+    })
+    .catch(() => {
+      // A failed query must never disable the interface — fall back to full
+      // motion, which is the OS default anyway.
+    });
+
+  // Deliberately never removed. The listener is process-wide and costs one
+  // registration; tearing it down when the last component unmounts only means
+  // paying to open it again on the next screen.
+  AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
+    if (enabled === reducedMotionEnabled) return;
+    reducedMotionEnabled = enabled;
+    notifyReducedMotion();
+  });
+}
+
+function subscribeReducedMotion(listener: () => void): () => void {
+  openOsSubscription();
+  reducedMotionListeners.add(listener);
+  return () => {
+    reducedMotionListeners.delete(listener);
+  };
+}
+
+function getReducedMotion(): boolean {
+  return reducedMotionEnabled;
+}
+
 /**
  * Whether the user has asked the OS to reduce motion.
  *
@@ -48,31 +107,15 @@ export const timing = {
  * large translating and rolling animations this design language leans on can
  * cause genuine nausea. Components that move things a meaningful distance
  * should collapse to an opacity change when this is true.
+ *
+ * `useSyncExternalStore` rather than useState+useEffect, so every consumer
+ * reads one shared value and React handles the tearing and subscription
+ * lifecycle correctly.
  */
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => {
-        if (active) setReduced(enabled);
-      })
-      .catch(() => {
-        // Query failure should never disable the interface — fall back to
-        // full motion, matching the OS default.
-      });
-
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      setReduced(enabled);
-    });
-
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
-
-  return reduced;
+  return useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotion,
+    getReducedMotion,
+  );
 }
