@@ -1,0 +1,35 @@
+// Expo SDK 52 module convention.
+//
+// The generator emitted `plugins { id 'expo-module-gradle-plugin' }`, because it
+// fell back to the LATEST module template when it could not fetch the one
+// matching this SDK. That plugin id does not exist in SDK 52 — expo-modules-core
+// here ships the older `ExpoModulesCorePlugin.gradle`, applied by path. Using
+// the generated version fails at Gradle configuration time.
+//
+// This mirrors how the installed SDK 52 modules declare themselves; compare
+// node_modules/expo-device/android/build.gradle.
+apply plugin: 'com.android.library'
+
+group = 'expo.modules.notificationcapture'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(
+  project(":expo-modules-core").projectDir.absolutePath,
+  "ExpoModulesCorePlugin.gradle"
+)
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useDefaultAndroidSdkVersions()
+useExpoPublishing()
+
+android {
+  namespace "expo.modules.notificationcapture"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}

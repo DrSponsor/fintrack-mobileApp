@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
+import { Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
+import { Link } from 'expo-router';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
 
@@ -36,6 +37,30 @@ function createStyles(theme: AppTheme) {
       ...theme.typography.body,
       color: theme.colors.text.secondary,
     },
+
+    devRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+      marginTop: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.rule.default,
+    },
+    devLabel: {
+      ...theme.typography.micro,
+      color: theme.colors.text.disabled,
+      letterSpacing: 1.4,
+    },
+    devText: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      flex: 1,
+    },
+    devChevron: {
+      ...theme.typography.technicalSmall,
+      color: theme.colors.text.tertiary,
+    },
   });
 }
 
@@ -52,6 +77,19 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.text}>Your account settings will be displayed here.</Text>
         </View>
+
+        {/* Development only. The route stays registered in production so it
+            always resolves, but nothing links to it there. Delete this block
+            along with the inspector once the parser has a real corpus. */}
+        {__DEV__ && (
+          <Link href="/(app)/capture-debug" asChild>
+            <Pressable style={styles.devRow} accessibilityRole="button">
+              <Text style={styles.devLabel}>DEV</Text>
+              <Text style={styles.devText}>Alert capture inspector</Text>
+              <Text style={styles.devChevron}>→</Text>
+            </Pressable>
+          </Link>
+        )}
       </ScrollView>
     </View>
   );

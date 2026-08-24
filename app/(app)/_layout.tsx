@@ -80,6 +80,15 @@ export default function AppLayout() {
           href: null,
         }}
       />
+      {/* Development inspector for the notification listener. Hidden rather
+          than removed in production builds so the route always resolves; the
+          screen itself is only linked from Settings under __DEV__. */}
+      <Tabs.Screen
+        name="capture-debug"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

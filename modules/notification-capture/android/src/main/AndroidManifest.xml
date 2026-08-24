@@ -1,0 +1,32 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      The notification listener.
+
+      android:exported="true" is REQUIRED and is not a mistake. The service is
+      bound by the system's NotificationManagerService, i.e. from outside this
+      app, so an unexported service is never started. Since Android 12 any
+      component with an intent-filter must state `exported` explicitly, so the
+      old implicit default is not available.
+
+      What keeps it safe is android:permission, not exported=false: only a
+      caller holding BIND_NOTIFICATION_LISTENER_SERVICE may bind, and that
+      permission is signature-level — held by the OS and grantable to nobody
+      else. No third-party app can reach this service.
+
+      Declaring the service does NOT grant access to notifications. The user
+      must additionally enable the listener by hand in system settings; until
+      they do, onNotificationPosted is never called. That consent screen is
+      what requestAccess() opens.
+    -->
+    <service
+      android:name="expo.modules.notificationcapture.NotificationCaptureService"
+      android:label="FinTrack transaction alerts"
+      android:exported="true"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>
