@@ -5,23 +5,23 @@
  * A representative message:
  *
  *     Debit
- *     Amt:NGN4,989.25
+ *     Amt:NGN1,234.56
  *     Acc:012******345
- *     Desc:312ABCD2600000AA/MOBILE TRF TO PAY/ /JOHN ADEBAYO
- *     Date:17/08/2026
- *     Avail Bal:NGN200,000.00
+ *     Desc:312ABCD2600000AA/MOBILE TRF TO PAY/ /MARY OKAFOR ROE
+ *     Date:05/03/2026
+ *     Avail Bal:NGN50,000.00
  *     Total:NGN2
  *
  * ── Four things the real corpus taught that guesswork would not ──────────
  *
  * 1. `Total:` IS ALWAYS TRUNCATED, and is deliberately never read. Across five
- *    samples it arrived as "NGN2", "NGN209", "NGN242,325.0" — the SMS hits its
+ *    samples it arrived as "NGN2", "NGN209", "NGN57,890.0" — the SMS hits its
  *    length limit and the final field is whatever survived. It also merely
  *    repeats `Avail Bal`, so nothing is lost by ignoring it. A parser that
- *    trusted it would report a ₦242,325 balance as ₦2, and would do so only on
+ *    trusted it would report a ₦57,890 balance as ₦2, and would do so only on
  *    the longest messages.
  *
- * 2. THE DATE IS DD/MM/YYYY. "17/08/2026" settles it — 17 cannot be a month.
+ * 2. THE DATE IS DD/MM/YYYY. "05/03/2026" settles it — 17 cannot be a month.
  *    Parsed by explicit field, never handed to `new Date(string)`, which would
  *    read it as US MM/DD and silently produce a wrong date for every day of the
  *    month past the twelfth.
@@ -36,7 +36,7 @@
  * 4. THE NARRATIVE IS A SLASH-DELIMITED COMPOUND, and the merchant is not
  *    where a naive split would put it. "WEB PYMT +14152360599 +14152360599
  *    00US" has a phone number where a merchant name belongs, and a trailing
- *    country token; "MOBILE TRF TO PAY/ /JOHN ADEBAYO" hides the
+ *    country token; "MOBILE TRF TO PAY/ /MARY OKAFOR ROE" hides the
  *    counterparty behind an empty segment.
  *
  * ── What the credit samples then corrected ───────────────────────────────
@@ -45,8 +45,8 @@
  * failure was silent rather than loud. Inbound alerts use narrative forms that
  * share no keyword with outbound ones:
  *
- *     Desc:312NIPL2620100ee/Paystack/PSST10JDOvkaaawt071756082
- *     Desc:312HABR2620200bk/Transfer from YETUNDE TEMILOLA OLUYOMBO
+ *     Desc:312WXYZ2600001BC/Paystack/PSST00SAMPLE0000000001
+ *     Desc:312WXYZ2600003BE/Transfer from MARY OKAFOR ROE
  *
  * The first carries no TRF or TRANSFER token anywhere, so it fell through every
  * branch to `unknown`. The second matched the transfer branch but has no slash
@@ -139,7 +139,7 @@ function readNarrative(description: string): Narrative {
   }
 
   if (/\bMOBILE\s+TRF\b|\bTRF\b|\bTRANSFER\b/.test(upper)) {
-    // Inbound: "Transfer from YETUNDE TEMILOLA OLUYOMBO". Checked BEFORE the
+    // Inbound: "Transfer from MARY OKAFOR ROE". Checked BEFORE the
     // slash form, because this one has no slashes at all and would otherwise
     // fall through to a null counterparty.
     const inbound = /\b(?:transfer|trf)\s+from\s+(.+)$/i.exec(description);
@@ -148,7 +148,7 @@ function readNarrative(description: string): Narrative {
       return { channel: 'transfer', text: description, counterparty: inboundName, country: null };
     }
 
-    // Outbound: "MOBILE TRF TO PAY/ /JOHN ADEBAYO" — the counterparty
+    // Outbound: "MOBILE TRF TO PAY/ /MARY OKAFOR ROE" — the counterparty
     // is the LAST non-empty slash segment. The empty segment between the
     // slashes is a real part of the format, not a parsing artefact.
     const segments = splitSegments(description);
@@ -196,7 +196,7 @@ function readNarrative(description: string): Narrative {
     return { channel: 'atm', text: description, counterparty: null, country: null };
   }
 
-  // "Paystack/PSST10JDOvkaaawt071756082" — a source name followed by that
+  // "Paystack/PSST00SAMPLE0000000001" — a source name followed by that
   // source's own opaque reference, with no keyword anywhere to key on. This is
   // how NIP credits from payment processors arrive, and it is the form that
   // silently produced `unknown` before real credit samples existed.
@@ -241,7 +241,7 @@ export function parseAccessBank(raw: string): ParseResult {
   const balanceKobo = balanceText === null ? null : nairaToKobo(balanceText);
 
   const description = field(raw, 'Desc') ?? '';
-  // "312ABCD2600000AA/MOBILE TRF TO PAY/ /JOHN ADEBAYO"
+  // "312ABCD2600000AA/MOBILE TRF TO PAY/ /MARY OKAFOR ROE"
   // The reference is everything before the first slash, when it looks like one.
   const slash = description.indexOf('/');
   const candidate = slash > 0 ? description.slice(0, slash) : '';

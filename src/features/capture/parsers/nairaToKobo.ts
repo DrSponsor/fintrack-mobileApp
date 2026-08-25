@@ -17,13 +17,13 @@
 const FIGURE = /^(\d+)(?:\.(\d{1,2}))?$/;
 
 /**
- * @param text figure as printed, e.g. "4,989.25", "NGN200,000.00", "1600"
+ * @param text figure as printed, e.g. "1,234.56", "NGN50,000.00", "1600"
  * @returns minor units, or null if the text is not a well-formed figure
  */
 export function nairaToKobo(text: string): bigint | null {
   const cleaned = text
     .trim()
-    // Currency marks appear inconsistently: "NGN4,989.25", "₦4,989.25", bare.
+    // Currency marks appear inconsistently: "NGN1,234.56", "₦1,234.56", bare.
     .replace(/^(?:NGN|ngn|₦)\s*/u, '')
     .replace(/,/g, '');
 

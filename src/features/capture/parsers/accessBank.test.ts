@@ -11,17 +11,17 @@ import { looksLikeAccessBank, parseAccessBank } from './accessBank';
 
 const SAMPLES = {
   transferA: `Debit
-Amt:NGN4,989.25
+Amt:NGN1,234.56
 Acc:012******345
-Desc:312ABCD2600000AA/MOBILE TRF TO PAY/ /JOHN ADEBAYO
-Date:17/08/2026
-Avail Bal:NGN200,000.00
+Desc:312ABCD2600000AA/MOBILE TRF TO PAY/ /MARY OKAFOR ROE
+Date:05/03/2026
+Avail Bal:NGN50,000.00
 Total:NGN2`,
 
   transferB: `Debit
 Amt:NGN4,873.50
 Acc:012******345
-Desc:312ABCD2600000AA/MOBILE TRF TO PAY/ /JOHN ADEBAYO
+Desc:312ABCD2600001AC/MOBILE TRF TO PAY/ /MARY OKAFOR ROE
 Date:15/08/2026
 Avail Bal:NGN205,000.00
 Total:NGN2`,
@@ -29,7 +29,7 @@ Total:NGN2`,
   webForeign: `Debit
 Amt:NGN27,380.00
 Acc:012******345
-Desc:098VCPW2622604P7/WEB PYMT +14152360599 +14152360599 00US
+Desc:098ABCD2600003AE/WEB PYMT +14152360599 +14152360599 00US
 Date:14/08/2026
 Avail Bal:NGN209,884.25
 Total:NGN209`,
@@ -37,7 +37,7 @@ Total:NGN209`,
   transferC: `Debit
 Amt:NGN5,000.00
 Acc:012******345
-Desc:312ABCD2600000AAp/MOBILE TRF TO PAY/ /JOHN ADEBAYO
+Desc:312ABCD2600002AD/MOBILE TRF TO PAY/ /MARY OKAFOR ROE
 Date:14/08/2026
 Avail Bal:NGN237,314.25
 Total:NGN2`,
@@ -45,23 +45,23 @@ Total:NGN2`,
   webSpotify: `Debit
 Amt:NGN1,600.00
 Acc:012******345
-Desc:098WNVI2622609U1/WEB PYMT SPOTIFY 234000000000 00NG
+Desc:098ABCD2600004AF/WEB PYMT SPOTIFY 234000000000 00NG
 Date:14/08/2026
-Avail Bal:NGN242,325.00
-Total:NGN242,325.0`,
+Avail Bal:NGN57,890.00
+Total:NGN57,890.0`,
 } as const;
 
 describe('nairaToKobo', () => {
   it('converts without floating point error', () => {
     // parseFloat('4989.25') * 100 === 498924.99999999994
-    expect(nairaToKobo('4,989.25')).toBe(498_925n);
+    expect(nairaToKobo('1,234.56')).toBe(123_456n);
     expect(nairaToKobo('NGN27,380.00')).toBe(2_738_000n);
     expect(nairaToKobo('₦1,600.00')).toBe(160_000n);
   });
 
   it('treats a single decimal as tenths of naira, not kobo', () => {
-    // "242,325.0" is two hundred odd thousand naira exactly, not 0.0 kobo.
-    expect(nairaToKobo('242,325.0')).toBe(24_232_500n);
+    // "57,890.0" is fifty-odd thousand naira exactly, not 0.0 kobo.
+    expect(nairaToKobo('57,890.0')).toBe(5_789_000n);
   });
 
   it('accepts a bare whole figure', () => {
@@ -97,27 +97,27 @@ describe('parseAccessBank — transfers', () => {
 
     expect(result.alert.direction).toBe('debit');
     expect(result.alert.channel).toBe('transfer');
-    expect(result.alert.amountKobo).toBe(498_925n);
-    expect(result.alert.balanceKobo).toBe(20_000_000n);
+    expect(result.alert.amountKobo).toBe(123_456n);
+    expect(result.alert.balanceKobo).toBe(5_000_000n);
     expect(result.alert.accountMask).toBe('012******345');
     expect(result.alert.reference).toBe('312ABCD2600000AA');
-    expect(result.alert.valueDate).toBe('2026-08-17');
+    expect(result.alert.valueDate).toBe('2026-03-05');
   });
 
   it('finds the counterparty behind the empty slash segment', () => {
     const result = parseAccessBank(SAMPLES.transferB);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.alert.counterparty).toBe('JOHN ADEBAYO');
+    expect(result.alert.counterparty).toBe('MARY OKAFOR ROE');
   });
 
   it('handles a mixed-case reference', () => {
-    // "312ABCD2600000AAp" — the bank does not guarantee upper case.
+    // "312ABCD2600002AD" — the bank does not guarantee upper case.
     const result = parseAccessBank(SAMPLES.transferC);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.alert.reference).toBe('312ABCD2600000AAp');
-    expect(result.alert.counterparty).toBe('JOHN ADEBAYO');
+    expect(result.alert.reference).toBe('312ABCD2600002AD');
+    expect(result.alert.counterparty).toBe('MARY OKAFOR ROE');
   });
 });
 
@@ -151,16 +151,16 @@ describe('parseAccessBank — the truncated Total field', () => {
     const result = parseAccessBank(SAMPLES.transferA);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.alert.balanceKobo).toBe(20_000_000n);
+    expect(result.alert.balanceKobo).toBe(5_000_000n);
   });
 
   it('reads Avail Bal even when Total survived almost intact', () => {
     const result = parseAccessBank(SAMPLES.webSpotify);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // Avail Bal 242,325.00 vs the truncated Total 242,325.0 — one kobo apart,
+    // Avail Bal 57,890.00 vs the truncated Total 57,890.0 — ten kobo apart,
     // which is exactly the kind of near-miss that would never be noticed.
-    expect(result.alert.balanceKobo).toBe(24_232_500n);
+    expect(result.alert.balanceKobo).toBe(5_789_000n);
   });
 });
 
@@ -171,11 +171,11 @@ describe('parseAccessBank — dates', () => {
     if (!result.ok) return;
     // 17/08 is the 17th of August. Read as US format it would be invalid, and
     // `new Date()` would produce a wrong date rather than an error.
-    expect(result.alert.valueDate).toBe('2026-08-17');
+    expect(result.alert.valueDate).toBe('2026-03-05');
   });
 
   it('returns null rather than a wrong date for an unreadable field', () => {
-    const broken = SAMPLES.transferA.replace('Date:17/08/2026', 'Date:17-08-2026');
+    const broken = SAMPLES.transferA.replace('Date:05/03/2026', 'Date:17-08-2026');
     const result = parseAccessBank(broken);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -214,8 +214,8 @@ describe('parseAccessBank — fees', () => {
     const fee = `Debit
 Amt:NGN10.75
 Acc:012******345
-Desc:312ABCD2600000AA/ELECTRONIC MONEY TRANSFER LEVY
-Date:17/08/2026
+Desc:312ABCD2600005AG/ELECTRONIC MONEY TRANSFER LEVY
+Date:05/03/2026
 Avail Bal:NGN199,989.25
 Total:NGN1`;
     const result = parseAccessBank(fee);
@@ -235,7 +235,7 @@ const CREDITS = {
   paystackA: `Credit
 Amt:NGN4,825.00
 Acc:012******345
-Desc:312NIPL2620100ee/Paystack/PSST10JDOvkaaawt071756082
+Desc:312WXYZ2600001BC/Paystack/PSST00SAMPLE0000000001
 Date:20/07/2026
 Avail Bal:NGN192,273.50
 Total:NGN192,273.`,
@@ -243,7 +243,7 @@ Total:NGN192,273.`,
   paystackB: `Credit
 Amt:NGN4,825.00
 Acc:012******345
-Desc:312NIPL2620100Xd/Paystack/PSST108WMhqdQWAu071756082
+Desc:312WXYZ2600002BD/Paystack/PSST00SAMPLE0000000002
 Date:20/07/2026
 Avail Bal:NGN197,098.50
 Total:NGN197,098.`,
@@ -251,7 +251,7 @@ Total:NGN197,098.`,
   fromPerson: `Credit
 Amt:NGN3,000.00
 Acc:012******345
-Desc:312HABR2620200bk/Transfer from YETUNDE TEMILOLA OLUYOMBO
+Desc:312WXYZ2600003BE/Transfer from MARY OKAFOR ROE
 Date:21/07/2026
 Avail Bal:NGN204,923.50
 Total:NGN204`,
@@ -259,7 +259,7 @@ Total:NGN204`,
   fromHyphenatedPerson: `Credit
 Amt:NGN5,000.00
 Acc:012******345
-Desc:312HABR2620200ia/Transfer from ABDUL-HAMEED AREMU MUSTAPHA
+Desc:312WXYZ2600004BF/Transfer from PETER CHUKWU POE
 Date:21/07/2026
 Avail Bal:NGN209,923.50
 Total:NGN2`,
@@ -284,7 +284,7 @@ describe('parseAccessBank — credits', () => {
 
     expect(result.alert.channel).toBe('transfer');
     expect(result.alert.counterparty).toBe('Paystack');
-    expect(result.alert.reference).toBe('312NIPL2620100ee');
+    expect(result.alert.reference).toBe('312WXYZ2600001BC');
     expect(result.alert.amountKobo).toBe(482_500n);
   });
 
@@ -304,7 +304,7 @@ describe('parseAccessBank — credits', () => {
     if (!result.ok) return;
 
     expect(result.alert.channel).toBe('transfer');
-    expect(result.alert.counterparty).toBe('YETUNDE TEMILOLA OLUYOMBO');
+    expect(result.alert.counterparty).toBe('MARY OKAFOR ROE');
     expect(result.alert.valueDate).toBe('2026-07-21');
   });
 
@@ -312,7 +312,7 @@ describe('parseAccessBank — credits', () => {
     const result = parseAccessBank(CREDITS.fromHyphenatedPerson);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.alert.counterparty).toBe('ABDUL-HAMEED AREMU MUSTAPHA');
+    expect(result.alert.counterparty).toBe('PETER CHUKWU POE');
   });
 
   it('reconciles exactly, because fees are charged on debits only', () => {
