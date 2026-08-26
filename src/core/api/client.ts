@@ -69,6 +69,29 @@ export interface ApiError {
 }
 
 /**
+ * Pulls the backend's error envelope out of a rejected request.
+ *
+ * Returns null when the request never reached the server — a timeout, or no
+ * connection — because that case is genuinely different and the caller must
+ * say so. "Something went wrong" and "we could not reach the server, nothing
+ * was saved" lead a user to do opposite things.
+ */
+export function readApiError(error: unknown): ApiError['error'] | null {
+  if (typeof error !== 'object' || error === null || !('isAxiosError' in error)) return null;
+
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (typeof data !== 'object' || data === null || !('error' in data)) return null;
+
+  const envelope = (data as { error?: unknown }).error;
+  if (typeof envelope !== 'object' || envelope === null) return null;
+
+  const { code, message, field } = envelope as { code?: unknown; message?: unknown; field?: unknown };
+  if (typeof code !== 'string' || typeof message !== 'string') return null;
+
+  return { code, message, ...(typeof field === 'string' ? { field } : {}) };
+}
+
+/**
  * Type-safe API call wrapper.
  * Unwraps the backend envelope and returns just the data.
  *
@@ -81,8 +104,13 @@ export const api = {
     return response.data.data;
   },
 
-  async post<T>(url: string, body?: unknown): Promise<T> {
-    const response = await apiClient.post<ApiResponse<T>>(url, body);
+  /**
+   * `headers` exists for the Idempotency-Key the backend requires on every
+   * financial mutation. Without it, a request that times out on a slow network
+   * and gets retried would post the money twice.
+   */
+  async post<T>(url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+    const response = await apiClient.post<ApiResponse<T>>(url, body, headers ? { headers } : undefined);
     return response.data.data;
   },
 

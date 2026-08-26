@@ -22,6 +22,9 @@ export const endpoints = {
     list: `${V1}/transactions`,
     detail: (id: string) => `${V1}/transactions/${id}`,
     updateCategory: (id: string) => `${V1}/transactions/${id}/category`,
+    // Only removes rows the user entered themselves. Bank-sourced transactions
+    // are immutable records, and the backend rejects deleting one.
+    delete: (id: string) => `${V1}/transactions/${id}`,
   },
 
   // ── Capture ──────────────────────────────────────────────

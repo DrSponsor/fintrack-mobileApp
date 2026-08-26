@@ -80,6 +80,15 @@ export default function AppLayout() {
           href: null,
         }}
       />
+      {/* Reached from the ledger's own header rather than the tab bar. Manual
+          entry is something you do about a transaction, not a place in the app,
+          and a sixth tab would say otherwise. */}
+      <Tabs.Screen
+        name="transactions/new"
+        options={{
+          href: null,
+        }}
+      />
       {/* Development inspector for the notification listener. Hidden rather
           than removed in production builds so the route always resolves; the
           screen itself is only linked from Settings under __DEV__. */}
