@@ -56,9 +56,17 @@ import { manualEntrySchema, type ManualEntryFormData } from '@/features/capture/
 import { nairaToKobo } from '@/features/capture/parsers/nairaToKobo';
 import type { AccountSummary, CategorySummary } from '@/features/capture/types';
 
-/** "food-groceries" → "Food groceries". Categories are stored as stable slugs. */
-function prettifyCategory(name: string): string {
-  const spaced = name.replace(/[-_]/g, ' ');
+/**
+ * "food-groceries" → "Food & groceries".
+ *
+ * Categories are stored as stable slugs so the backend can address them by
+ * name, and every compound one joins two things that belong together —
+ * food/groceries, airtime/data, fees/charges. The hyphen means "and" in all of
+ * them, so it becomes an ampersand rather than a space: "Food groceries" reads
+ * like a typo.
+ */
+function categoryLabel(name: string): string {
+  const spaced = name.replace(/-/g, ' & ').replace(/_/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
@@ -142,7 +150,7 @@ export default function NewTransactionScreen(): React.JSX.Element {
   );
 
   const categoryOptions: readonly ChoiceOption[] = useMemo(
-    () => categories.map((category) => ({ id: category.id, label: prettifyCategory(category.name) })),
+    () => categories.map((category) => ({ id: category.id, label: categoryLabel(category.name) })),
     [categories],
   );
 

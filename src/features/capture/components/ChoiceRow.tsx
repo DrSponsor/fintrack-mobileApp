@@ -82,10 +82,13 @@ export function ChoiceRow({
         // Announced as a dialog so a screen reader traps focus inside it.
         accessibilityViewIsModal
       >
-        {/* Tapping the scrim closes. The sheet itself swallows the press so a
-            tap inside it never falls through to the scrim beneath. */}
+        {/* Tapping the scrim closes. The sheet is a Pressable purely to absorb
+            touches: in React Native the responder system hands a touch to the
+            innermost view that claims it, so a press inside the sheet never
+            reaches the scrim behind it. There is no event to stop — a
+            no-op onPress is the whole mechanism. */}
         <Pressable style={styles.scrim} onPress={() => setOpen(false)} accessibilityLabel="Close">
-          <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
+          <Pressable style={styles.sheet} onPress={() => undefined}>
             <Text style={styles.sheetTitle}>{label}</Text>
             <View style={styles.sheetRule} />
 
