@@ -95,6 +95,17 @@ export function DuplicateNotice({
               <Text style={styles.source}>
                 {SOURCE_LABEL[existing.source] ?? existing.source}
               </Text>
+              {/* The bank's own id for the payment, where there is one. This is
+                  not developer leakage: it is the single most convincing thing
+                  on this sheet, because it is what the user would quote to
+                  their bank, and it is the same value they can find on their
+                  statement. Set in the number face, like the error code on a
+                  NoticeBand. */}
+              {existing.providerRef !== null && (
+                <Text style={styles.reference} selectable>
+                  {existing.providerRef}
+                </Text>
+              )}
             </View>
             <Text style={[styles.amount, { color: tint }]}>
               {isOut ? '−' : '+'}
@@ -185,6 +196,11 @@ function createStyles(theme: AppTheme) {
     source: {
       ...theme.typography.micro,
       letterSpacing: 1.1,
+      color: theme.colors.text.tertiary,
+      marginTop: theme.spacing.hair,
+    },
+    reference: {
+      ...theme.typography.technicalSmall,
       color: theme.colors.text.tertiary,
       marginTop: theme.spacing.hair,
     },

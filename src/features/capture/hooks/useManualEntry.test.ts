@@ -30,6 +30,7 @@ function makeTransaction(overrides: Partial<CapturedTransaction> = {}): Captured
     transactionDate: PAYLOAD.transactionDate,
     source: 'MANUAL',
     isVerified: false,
+    providerRef: null,
     createdAt: PAYLOAD.transactionDate,
     ...overrides,
   };

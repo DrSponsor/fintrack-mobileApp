@@ -23,6 +23,14 @@ export interface CapturedTransaction {
   readonly transactionDate: string;
   readonly source: CaptureSource;
   readonly isVerified: boolean;
+  /**
+   * The bank's own id for this payment, when its alert stated one.
+   *
+   * Null on anything entered by hand, and on banks whose alerts do not print
+   * one. Where it exists it is the strongest evidence there is that two
+   * records describe the same money.
+   */
+  readonly providerRef: string | null;
   readonly createdAt: string;
 }
 
