@@ -6,7 +6,7 @@ import { useFonts } from 'expo-font';
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { database } from '@/core/database/database';
-import { queryClient } from '@/core/api/queryClient';
+import { queryClient, installSessionCacheReset } from '@/core/api/queryClient';
 import { ThemeProvider } from '@/design-system/ThemeProvider';
 import { fontAssets } from '@/design-system/typography';
 import { colors } from '@/design-system/tokens';
@@ -55,6 +55,11 @@ export default function RootLayout() {
     void initSentry();
     void initPostHog();
   }, []);
+
+  // Empties the query cache whenever the signed-in identity changes. Mounted
+  // at the root so it is running before any screen can read a cached answer —
+  // see queryClient.ts for the leak this closes.
+  useEffect(() => installSessionCacheReset(), []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {

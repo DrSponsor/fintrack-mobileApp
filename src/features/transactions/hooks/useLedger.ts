@@ -24,13 +24,18 @@ import { readApiError } from '@/core/api/client';
 import { RemoteLedgerRepository } from '@/core/repositories/ledger/RemoteLedgerRepository';
 import type { ILedgerRepository, LedgerPage } from '@/core/repositories/ledger/ILedgerRepository';
 import { groupByDay, type LedgerItem } from '../ledger';
+import { useUserScope } from './useUserScope';
 
 export type LedgerStatus = 'loading' | 'ready' | 'error';
 
+// Keyed by user. See useUserScope for why an unscoped key is a money leak
+// rather than a staleness bug.
 export const ledgerKeys = {
-  all: ['ledger'] as const,
-  transactions: ['ledger', 'transactions'] as const,
-  categories: ['ledger', 'categories'] as const,
+  all: (user: string) => ['ledger', user] as const,
+  transactions: (user: string) => ['ledger', user, 'transactions'] as const,
+  /** Categories are global reference data, not one user's — deliberately
+   *  shared, so switching accounts does not refetch a fixed list. */
+  categories: ['categories'] as const,
 };
 
 export interface UseLedgerResult {
@@ -62,8 +67,10 @@ function describe(err: unknown): string {
 }
 
 export function useLedger(repo: ILedgerRepository = RemoteLedgerRepository): UseLedgerResult {
+  const user = useUserScope();
+
   const pages = useInfiniteQuery({
-    queryKey: ledgerKeys.transactions,
+    queryKey: ledgerKeys.transactions(user),
     queryFn: ({ pageParam }: { pageParam: string | undefined }) => repo.listTransactions(pageParam),
     initialPageParam: undefined as string | undefined,
     // Returning undefined is how the library is told there is nothing after

@@ -38,6 +38,7 @@ import type { ICaptureRepository } from '@/core/repositories/capture/ICaptureRep
 import type { AccountSummary } from '@/features/capture/types';
 import type { LedgerEntry } from '../ledger';
 import { ledgerKeys } from './useLedger';
+import { useUserScope } from './useUserScope';
 import { summariseMonth, type CategorySlice } from '../summary';
 
 /** Rows per request for the month window. The cap the API enforces. */
@@ -50,8 +51,8 @@ export const RECENT_LIMIT = 4;
 export const BREAKDOWN_LIMIT = 4;
 
 export const dashboardKeys = {
-  month: (key: string) => ['ledger', 'month', key] as const,
-  accounts: ['ledger', 'accounts'] as const,
+  month: (user: string, key: string) => ['ledger', user, 'month', key] as const,
+  accounts: (user: string) => ['ledger', user, 'accounts'] as const,
 };
 
 export interface DashboardSummary {
@@ -82,6 +83,8 @@ export function useDashboard(
   captureRepo: ICaptureRepository = RemoteCaptureRepository,
   now: Date = new Date(),
 ): DashboardSummary {
+  const user = useUserScope();
+
   // Local month boundaries, not UTC: a payment made at 9pm in Lagos belongs to
   // the month the person was living in, not the one the meridian was.
   //
@@ -102,7 +105,7 @@ export function useDashboard(
   }, [monthOf]);
 
   const month = useInfiniteQuery({
-    queryKey: dashboardKeys.month(window.key),
+    queryKey: dashboardKeys.month(user, window.key),
     queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
       repo.listTransactions(pageParam, MONTH_PAGE, {
         startDate: window.startDate,
@@ -113,7 +116,7 @@ export function useDashboard(
   });
 
   const accounts = useQuery({
-    queryKey: dashboardKeys.accounts,
+    queryKey: dashboardKeys.accounts(user),
     queryFn: () => captureRepo.listAccounts(),
     staleTime: 60 * 60 * 1000,
   });

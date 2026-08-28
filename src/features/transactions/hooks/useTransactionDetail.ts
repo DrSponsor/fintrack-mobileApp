@@ -29,10 +29,11 @@ import type { ICaptureRepository } from '@/core/repositories/capture/ICaptureRep
 import type { AccountSummary, CategorySummary } from '@/features/capture/types';
 import type { LedgerEntry } from '../ledger';
 import { ledgerKeys } from './useLedger';
+import { dashboardKeys } from './useDashboard';
+import { useUserScope } from './useUserScope';
 
 export const detailKeys = {
-  transaction: (id: string) => ['ledger', 'transaction', id] as const,
-  accounts: ['ledger', 'accounts'] as const,
+  transaction: (user: string, id: string) => ['ledger', user, 'transaction', id] as const,
 };
 
 export interface UseTransactionDetailResult {
@@ -61,10 +62,11 @@ export function useTransactionDetail(
   repo: ILedgerRepository = RemoteLedgerRepository,
   captureRepo: ICaptureRepository = RemoteCaptureRepository,
 ): UseTransactionDetailResult {
+  const user = useUserScope();
   const queryClient = useQueryClient();
 
   const transaction = useQuery({
-    queryKey: detailKeys.transaction(id),
+    queryKey: detailKeys.transaction(user, id),
     queryFn: () => repo.getTransaction(id),
     enabled: id.length > 0,
   });
@@ -76,7 +78,7 @@ export function useTransactionDetail(
   });
 
   const accounts = useQuery({
-    queryKey: detailKeys.accounts,
+    queryKey: dashboardKeys.accounts(user),
     queryFn: () => captureRepo.listAccounts(),
     staleTime: 60 * 60 * 1000,
   });
@@ -85,8 +87,8 @@ export function useTransactionDetail(
     mutationFn: (input: { categoryId: string; scope: CorrectionScope }) =>
       repo.correctCategory(id, input.categoryId, input.scope),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: detailKeys.transaction(id) });
-      void queryClient.invalidateQueries({ queryKey: ledgerKeys.transactions });
+      void queryClient.invalidateQueries({ queryKey: detailKeys.transaction(user, id) });
+      void queryClient.invalidateQueries({ queryKey: ledgerKeys.all(user) });
     },
   });
 

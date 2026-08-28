@@ -32,6 +32,7 @@
  */
 import { QueryClient } from '@tanstack/react-query';
 import { readApiError } from './client';
+import { useAuthStore } from '@/core/store/auth.store';
 
 /** HTTP status carried on an Axios error, when there is one. */
 function statusOf(error: unknown): number | undefined {
@@ -70,3 +71,40 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Empties the cache whenever the signed-in identity changes.
+ *
+ * ── The bug this exists for ──────────────────────────────────────────────
+ * The client is a module singleton, so it outlives a session. Signing out and
+ * into a different account left the previous user's answers cached, and
+ * because `accounts` is read with a one-hour staleTime while the month is not,
+ * the dashboard rendered a SPLIT of two people: the new user's empty month
+ * under the previous user's balance and account count. Someone was shown
+ * ₦1,284,500.00 that was not theirs.
+ *
+ * ── Why here rather than in the logout path ──────────────────────────────
+ * Three separate places end or change a session — the logout use case, the
+ * refresh interceptor's forced logout, and login/register starting a new one —
+ * and a fourth will be added eventually. Clearing at each is a rule someone
+ * has to remember. Watching the identity itself is a rule nobody can forget,
+ * and it covers paths that do not exist yet.
+ *
+ * ── It is still not the only defence ─────────────────────────────────────
+ * Query keys are scoped by user id as well. This clear runs synchronously when
+ * the store is written, so it lands before the next screen mounts — but the
+ * cost of being wrong here is showing one person another person's money, and
+ * that deserves a structural guarantee rather than an ordering argument.
+ */
+export function installSessionCacheReset(): () => void {
+  let previous: string | null = null;
+
+  return useAuthStore.subscribe((state) => {
+    const current = state.user?.id ?? null;
+    if (current === previous) return;
+    previous = current;
+    // On sign-out as well as sign-in: leaving a signed-out user's financial
+    // data resident in memory is its own problem, separate from the leak.
+    queryClient.clear();
+  });
+}
