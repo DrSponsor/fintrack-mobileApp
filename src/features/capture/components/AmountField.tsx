@@ -141,7 +141,9 @@ function createStyles(theme: AppTheme) {
       marginRight: theme.spacing.xs,
       // translateY, not margin: this corrects where the glyph is PAINTED
       // without changing the row's height or the rule's position below it.
-      transform: [{ translateY: -4 }],
+      // Measured, not guessed: bottom-aligning the two boxes leaves the mark
+      // about a point high against the figures.
+      transform: [{ translateY: -1 }],
     },
     markIdle: {
       color: theme.colors.text.disabled,
