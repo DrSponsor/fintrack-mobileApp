@@ -39,7 +39,7 @@ import type { AccountSummary } from '@/features/capture/types';
 import type { LedgerEntry } from '../ledger';
 import { ledgerKeys } from './useLedger';
 import { useUserScope } from './useUserScope';
-import { summariseMonth, type CategorySlice } from '../summary';
+import { summariseMonth, spendCurve, type CategorySlice, type SpendCurve } from '../summary';
 
 /** Rows per request for the month window. The cap the API enforces. */
 const MONTH_PAGE = 100;
@@ -67,6 +67,8 @@ export interface DashboardSummary {
   readonly outKobo: bigint;
   readonly entryCount: number;
   readonly breakdown: readonly CategorySlice[];
+  /** The month accumulating, and where it lands at this rate. */
+  readonly curve: SpendCurve;
   readonly recent: readonly LedgerEntry[];
   readonly refreshing: boolean;
   readonly refresh: () => void;
@@ -152,6 +154,17 @@ export function useDashboard(
 
   const totals = useMemo(() => summariseMonth(entries, names), [entries, names]);
 
+  // Keyed on the month rather than the Date object, for the same reason the
+  // window is —  is a fresh instance on every render.
+  // Keyed on the month string rather than a Date, for the same reason the
+  // window is: `now` is a fresh instance on every render, so depending on it
+  // would rebuild the curve continuously.
+  const curve = useMemo(
+    () => spendCurve(entries, new Date()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entries, monthOf],
+  );
+
   const balance = useMemo(() => {
     const rows: readonly AccountSummary[] = accounts.data ?? [];
     if (rows.length === 0) return { balanceKobo: null, accountCount: 0 };
@@ -194,6 +207,7 @@ export function useDashboard(
     outKobo: totals.outKobo,
     entryCount: entries.length,
     breakdown: totals.breakdown.slice(0, BREAKDOWN_LIMIT),
+    curve,
     recent: entries.slice(0, RECENT_LIMIT),
     refreshing: month.isRefetching && !isFetchingNextPage,
     refresh,

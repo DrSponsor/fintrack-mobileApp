@@ -24,9 +24,12 @@
  * a developer's word for a mechanism that was not running, printed as though
  * it were a reassurance.
  *
- * ── Charts, and why there are none ───────────────────────────────────────
- * The proportions are drawn into the hairlines the layout already has, rather
- * than added as chart objects on top of it. See FlowBar and BreakdownRow.
+ * ── One chart, and it had to earn it ─────────────────────────────────────
+ * Proportions are drawn into the hairlines the layout already has rather than
+ * added as chart objects on top of it — see FlowBar and BreakdownRow. The one
+ * real chart is MonthCurve, which is there because totals cannot answer the
+ * question people actually open the app with: whether they are going to be
+ * alright. Spent-so-far means nothing without knowing what day it is.
  */
 import React, { useCallback, useMemo } from 'react';
 import {
@@ -49,36 +52,30 @@ import { NoticeBand } from '@/design-system/components';
 import { Reveal } from '@/design-system/motion/Reveal';
 import { RollingNumber } from '@/design-system/motion/RollingNumber';
 import { formatKoboToNaira } from '@/shared/components/AmountDisplay/AmountDisplay';
+import { useUIStore } from '@/core/store/ui.store';
 import { useDashboard } from '@/features/transactions/hooks/useDashboard';
 import { useLedger } from '@/features/transactions/hooks/useLedger';
 import { LedgerRow } from '@/features/transactions/components/LedgerRow';
 import { FlowBar } from '@/features/transactions/components/FlowBar';
 import { BreakdownRow } from '@/features/transactions/components/BreakdownRow';
+import { MonthCurve } from '@/features/transactions/components/MonthCurve';
 
 const MONTH_FORMAT: Intl.DateTimeFormatOptions = { month: 'long', year: 'numeric' };
 const DAY_FORMAT: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
 
 /**
- * The monument size that lets a given amount fit the measure.
+ * Capped well below the 56pt monument the type scale offers.
  *
- * The hero is a fixed 56pt in the type scale, and ₦1,284,500.00 is fourteen
- * characters — about 420pt of monospace at that size against 320pt of usable
- * width. It ran off the edge and took the kobo with it, so the figure read
- * "₦1,284,500." and the screen quietly lost two digits of someone's money.
- *
- * `adjustsFontSizeToFit` cannot help here: RollingNumber draws each digit as
- * its own animated slot so the odometer can roll them independently, and the
- * shrink-to-fit measurement works per Text, not across a row of them. So the
- * size is computed instead.
- *
- * Monospace makes that exact rather than a guess — every glyph is 0.6em wide,
- * and the monument's tracking is −6% of its size, so each character costs
- * 0.54em however long the number is.
+ * A balance set at full monument scale is the loudest thing on the screen by
+ * a distance, and it is also the one figure a person may not want read over
+ * their shoulder on a bus. Shouting someone's net worth is a design decision,
+ * not a neutral default — so the hero is the MONTH, and the balance is stated
+ * clearly without dominating.
  */
-const MONUMENT_MAX = 56;
-/** Below this the hero stops being a hero; a longer figure wraps its own
- *  scale rather than shrinking indefinitely. */
-const MONUMENT_MIN = 30;
+const MONUMENT_MAX = 38;
+/** Below this the figure stops reading as a headline; a longer number keeps
+ *  its own scale rather than shrinking indefinitely. */
+const MONUMENT_MIN = 26;
 const CHAR_EM = 0.54;
 
 function fitMonument(text: string, available: number): number {
@@ -113,6 +110,11 @@ export default function DashboardScreen(): React.JSX.Element {
   // reports what it actually rendered, including the safe-area inset.
   const tabBarHeight = useBottomTabBarHeight();
 
+  // Already in the store and persisted through MMKV — declared when the app
+  // was scaffolded and never wired to anything.
+  const hidden = useUIStore((state) => state.isBalanceHidden);
+  const toggleVisibility = useUIStore((state) => state.toggleBalanceVisibility);
+
   const summary = useDashboard();
   const { categoryName } = useLedger();
 
@@ -134,6 +136,11 @@ export default function DashboardScreen(): React.JSX.Element {
     router.push('/(app)/transactions');
   }, [router]);
 
+  const toggleHidden = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    toggleVisibility();
+  }, [toggleVisibility]);
+
   const hasMonth = summary.entryCount > 0;
 
   // Sized to the value, and re-sized when it grows a digit. Leading and
@@ -151,6 +158,12 @@ export default function DashboardScreen(): React.JSX.Element {
       letterSpacing: -0.06 * size,
     };
   }, [summary.balanceKobo, width, theme.spacing.gutter]);
+
+  // The bar stands at the figures' own cap height, so a covered balance
+  // occupies exactly the space an uncovered one would and the layout never
+  // shifts when it is revealed.
+  const barHeight = Math.round((monument?.fontSize ?? MONUMENT_MAX) * 0.62);
+
 
   return (
     <View style={styles.page}>
@@ -180,8 +193,24 @@ export default function DashboardScreen(): React.JSX.Element {
 
         {/* ── Balance ──────────────────────────────────────────────────── */}
         <Reveal index={1}>
-          <View style={styles.balanceBlock}>
-            <Text style={styles.label}>Balance</Text>
+          <Pressable
+            style={styles.balanceBlock}
+            onPress={summary.balanceKobo === null ? undefined : toggleHidden}
+            accessibilityRole={summary.balanceKobo === null ? undefined : 'button'}
+            accessibilityLabel={
+              summary.balanceKobo === null
+                ? undefined
+                : hidden
+                  ? 'Balance hidden. Tap to show.'
+                  : 'Balance shown. Tap to hide.'
+            }
+          >
+            <View style={styles.balanceCaption}>
+              <Text style={styles.label}>Balance</Text>
+              {summary.balanceKobo !== null && (
+                <Text style={styles.balanceToggle}>{hidden ? 'Show' : 'Hide'}</Text>
+              )}
+            </View>
             {summary.balanceKobo === null ? (
               <>
                 <Text style={styles.balanceUnknown}>Not known yet</Text>
@@ -192,6 +221,21 @@ export default function DashboardScreen(): React.JSX.Element {
                   Your bank states the balance on each alert. The next one sets this.
                 </Text>
               </>
+            ) : hidden ? (
+              // A struck-out line, not a row of bullets.
+              //
+              // Bullets were the first attempt and they looked broken: at
+              // headline size a monospaced • is a 10pt dot on a 20pt advance,
+              // so six of them read as scattered debris rather than a covered
+              // figure. This is the older and better answer — the currency
+              // mark, then the amount blacked out, which is what a redacted
+              // document looks like and therefore unmistakably deliberate.
+              //
+              // Fixed width, so it never leaks the magnitude it is concealing.
+              <View style={styles.redaction} accessibilityLabel="Balance hidden">
+                <Text style={[styles.redactionMark, monument]}>₦</Text>
+                <View style={[styles.redactionBar, { height: barHeight }]} />
+              </View>
             ) : (
               <>
                 <RollingNumber
@@ -210,7 +254,7 @@ export default function DashboardScreen(): React.JSX.Element {
                 </Text>
               </>
             )}
-          </View>
+          </Pressable>
         </Reveal>
 
         {!summary.ready ? (
@@ -230,20 +274,22 @@ export default function DashboardScreen(): React.JSX.Element {
                 meta={`${summary.entryCount} ${summary.entryCount === 1 ? 'entry' : 'entries'}`}
                 styles={styles}
               />
-              <FlowBar inKobo={summary.inKobo} outKobo={summary.outKobo} />
+              <FlowBar inKobo={summary.inKobo} outKobo={summary.outKobo} redacted={hidden} />
+              <MonthCurve curve={summary.curve} redacted={hidden} />
             </Reveal>
 
             {/* ── Where it went ────────────────────────────────────────── */}
             {summary.breakdown.length > 0 && (
               <Reveal index={3}>
                 <SectionHead label="Where it went" styles={styles} />
-                {summary.breakdown.map((slice) => (
+                {summary.breakdown.map((slice, order) => (
                   <BreakdownRow
                     key={slice.categoryId}
                     name={slice.name}
                     spentKobo={slice.spentKobo}
                     share={slice.share}
                     tint={tintFor(slice.categoryId)}
+                    order={order}
                   />
                 ))}
               </Reveal>
@@ -369,6 +415,32 @@ function createStyles(theme: AppTheme) {
     balanceBlock: {
       paddingTop: theme.spacing.xl,
       paddingBottom: theme.spacing.xxl,
+    },
+    redaction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: theme.spacing.sm,
+    },
+    redactionMark: {
+      ...theme.typography.monument,
+      color: theme.colors.text.secondary,
+      marginRight: theme.spacing.sm,
+    },
+    redactionBar: {
+      flex: 1,
+      maxWidth: 190,
+      backgroundColor: theme.colors.text.disabled,
+    },
+    balanceCaption: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+    },
+    // Same slot and voice as CHANGE on the detail screen and SHOW on the
+    // password field: an action stated as a word, at the right of a caption.
+    balanceToggle: {
+      ...theme.typography.micro,
+      letterSpacing: 1.2,
+      color: theme.colors.text.secondary,
     },
     balanceAmount: {
       ...theme.typography.monument,

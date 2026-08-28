@@ -29,13 +29,16 @@ import { formatKoboToNaira } from '@/shared/components/AmountDisplay/AmountDispl
 export interface FlowBarProps {
   readonly inKobo: bigint;
   readonly outKobo: bigint;
+  /** Hidden with the balance. The proportions still show — the SHAPE of a
+   *  month is not what someone is concealing, the amounts are. */
+  readonly redacted?: boolean;
 }
 
 /** Smallest share that still gets a visible segment, so a real but tiny
  *  figure is never drawn as nothing at all. */
 const FLOOR = 0.02;
 
-export function FlowBar({ inKobo, outKobo }: FlowBarProps): React.JSX.Element {
+export function FlowBar({ inKobo, outKobo, redacted = false }: FlowBarProps): React.JSX.Element {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -51,15 +54,23 @@ export function FlowBar({ inKobo, outKobo }: FlowBarProps): React.JSX.Element {
       <View style={styles.figures}>
         <View style={styles.column}>
           <Text style={styles.label}>In</Text>
-          <Text style={[styles.amount, styles.amountIn]} numberOfLines={1} adjustsFontSizeToFit>
-            {inKobo === 0n ? '—' : `+${formatKoboToNaira(inKobo)}`}
-          </Text>
+          {redacted ? (
+            <View style={[styles.struck, styles.struckIn]} />
+          ) : (
+            <Text style={[styles.amount, styles.amountIn]} numberOfLines={1} adjustsFontSizeToFit>
+              {inKobo === 0n ? '—' : `+${formatKoboToNaira(inKobo)}`}
+            </Text>
+          )}
         </View>
         <View style={[styles.column, styles.columnRight]}>
           <Text style={styles.label}>Out</Text>
-          <Text style={styles.amount} numberOfLines={1} adjustsFontSizeToFit>
-            {outKobo === 0n ? '—' : `−${formatKoboToNaira(outKobo)}`}
-          </Text>
+          {redacted ? (
+            <View style={[styles.struck, styles.struckOut]} />
+          ) : (
+            <Text style={styles.amount} numberOfLines={1} adjustsFontSizeToFit>
+              {outKobo === 0n ? '—' : `−${formatKoboToNaira(outKobo)}`}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -67,9 +78,14 @@ export function FlowBar({ inKobo, outKobo }: FlowBarProps): React.JSX.Element {
         style={styles.bar}
         accessibilityRole="image"
         accessibilityLabel={
-          total === 0n
-            ? 'Nothing moved this month'
-            : `${formatKoboToNaira(inKobo)} in, ${formatKoboToNaira(outKobo)} out`
+          // Redaction has to hold here too. A screen reader announcing the
+          // figures aloud is a worse leak than showing them, not an exemption
+          // from the one the user asked for.
+          redacted
+            ? 'Amounts hidden'
+            : total === 0n
+              ? 'Nothing moved this month'
+              : `${formatKoboToNaira(inKobo)} in, ${formatKoboToNaira(outKobo)} out`
         }
       >
         <View style={[styles.segment, styles.segmentIn, { flex: inShare }]} />
@@ -113,6 +129,27 @@ function createStyles(theme: AppTheme) {
     },
     amountIn: {
       color: theme.colors.money.inbound,
+    },
+    // Same device as the balance: the figure blacked out rather than replaced
+    // with glyphs, which at this size read as debris rather than concealment.
+    // Sized to the line it stands in, so nothing moves when it is revealed.
+    struck: {
+      height: 15,
+      width: 96,
+      marginTop: 6,
+      marginBottom: 6,
+      backgroundColor: theme.colors.text.disabled,
+    },
+    // Both ends keep their hue at the same low opacity. Tinting one and
+    // leaving the other neutral made a single gesture look like two different
+    // states; direction is not the secret here, the amount is.
+    struckIn: {
+      backgroundColor: theme.colors.money.inbound,
+      opacity: 0.45,
+    },
+    struckOut: {
+      backgroundColor: theme.colors.money.outbound,
+      opacity: 0.45,
     },
     bar: {
       flexDirection: 'row',

@@ -76,3 +76,67 @@ export function summariseMonth(
 
   return { inKobo, outKobo, breakdown };
 }
+
+// ── The month's shape, not just its totals ────────────────────────────────
+
+export interface SpendCurve {
+  readonly daysInMonth: number;
+  /** Day of the month, 1-based. */
+  readonly today: number;
+  /** Running total of spending at the END of each day so far. Length `today`. */
+  readonly cumulative: readonly bigint[];
+  readonly spentKobo: bigint;
+  /**
+   * What the month ends at if the current daily rate holds.
+   *
+   * Deliberately the simplest honest model: total so far, divided by days
+   * elapsed, extended to the month end. Anything cleverer — weekday weighting,
+   * excluding one-offs, last month's shape — is a guess the app cannot
+   * justify to someone looking at their own money, and a projection nobody can
+   * reconstruct in their head is one nobody should be asked to trust.
+   */
+  readonly projectedKobo: bigint;
+}
+
+/** Days in the local calendar month `date` falls in. */
+export function daysInMonth(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
+/**
+ * Cumulative spending through the month, and where it lands at this rate.
+ *
+ * Days with no spending still get an entry — the curve must be flat across
+ * them, not skip them, or the line would compress a quiet week into nothing
+ * and misstate the slope, which IS the information.
+ */
+export function spendCurve(entries: readonly LedgerEntry[], now: Date = new Date()): SpendCurve {
+  const days = daysInMonth(now);
+  const today = now.getDate();
+
+  const perDay = new Array<bigint>(today).fill(0n);
+  for (const entry of entries) {
+    if (entry.type === 'CREDIT') continue;
+    const when = new Date(entry.transactionDate);
+    // Guard the window: a caller can hand this rows outside the month, and a
+    // stray row must not write past the end of the array.
+    if (when.getFullYear() !== now.getFullYear() || when.getMonth() !== now.getMonth()) continue;
+    const day = when.getDate();
+    if (day < 1 || day > today) continue;
+    perDay[day - 1] = (perDay[day - 1] ?? 0n) + BigInt(entry.amountKobo);
+  }
+
+  const cumulative: bigint[] = [];
+  let running = 0n;
+  for (const amount of perDay) {
+    running += amount;
+    cumulative.push(running);
+  }
+
+  const spentKobo = running;
+  // Integer arithmetic throughout — the rate is never materialised as a
+  // fraction, so nothing rounds until the final figure.
+  const projectedKobo = today > 0 ? (spentKobo * BigInt(days)) / BigInt(today) : 0n;
+
+  return { daysInMonth: days, today, cumulative, spentKobo, projectedKobo };
+}
