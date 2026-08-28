@@ -172,6 +172,7 @@ export default function TransactionDetailScreen(): React.JSX.Element {
               options={options}
               selectedId={entry.categoryId}
               onSelect={handlePick}
+              action="Change"
               placeholder="Not filed yet"
               emptyMessage="Categories have not loaded yet."
             />

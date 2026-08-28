@@ -43,6 +43,21 @@ export interface ChoiceRowProps {
    * should be and the unnumbered row sits off the rail every other row shares.
    */
   readonly index?: number;
+  /**
+   * A verb shown at the right of the caption row — 'Change'.
+   *
+   * Needed on any screen where SOME rows are editable and some are not. This
+   * component is deliberately a ruled line with no box and no chevron, which
+   * works when every row on the form behaves the same way: the reader learns
+   * once that lines are fields. On a screen that mixes a settable row with
+   * read-only ones the line stops being a signal, because it is now the shape
+   * of both, and there is nothing left to tell a first-time reader that this
+   * one opens.
+   *
+   * A word rather than a glyph, in the same slot the password field's
+   * SHOW/HIDE already uses. It says what happens, and it needs no legend.
+   */
+  readonly action?: string;
 }
 
 export function ChoiceRow({
@@ -55,6 +70,7 @@ export function ChoiceRow({
   emptyMessage = 'Nothing to choose from yet.',
   optional = false,
   index,
+  action,
 }: ChoiceRowProps): React.JSX.Element {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -69,7 +85,7 @@ export function ChoiceRow({
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         accessibilityRole="button"
         accessibilityLabel={`${label}. ${selected?.label ?? placeholder}`}
-        accessibilityHint="Opens a list of options"
+        accessibilityHint={action !== undefined ? `Opens a list of options to ${action.toLowerCase()} it` : 'Opens a list of options'}
       >
         <View style={styles.captionRow}>
           {index !== undefined && (
@@ -78,6 +94,7 @@ export function ChoiceRow({
           <Text style={styles.caption}>{label}</Text>
           <View style={styles.captionSpacer} />
           {optional && <Text style={styles.optional}>Optional</Text>}
+          {action !== undefined && <Text style={styles.action}>{action}</Text>}
         </View>
         <View style={styles.valueRow}>
           {index !== undefined && <View style={styles.rail} />}
@@ -189,6 +206,15 @@ function createStyles(theme: AppTheme) {
       ...theme.typography.micro,
       letterSpacing: 1.2,
       color: theme.colors.text.tertiary,
+    },
+    // text.secondary, a step brighter than the password field's SHOW. That one
+    // sits beside a caret and a placeholder, so the field is already visibly a
+    // field; this is carrying the affordance on its own.
+    action: {
+      ...theme.typography.micro,
+      letterSpacing: 1.2,
+      color: theme.colors.text.secondary,
+      marginLeft: theme.spacing.sm,
     },
     optional: {
       ...theme.typography.micro,

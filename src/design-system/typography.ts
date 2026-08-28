@@ -73,11 +73,29 @@ export const typography = {
   // uniform advance, which at 56px leaves gaps you could park a car in. Pulling
   // it in hard is what turns a code face into a display face.
 
-  /** 56 — the balance hero. Leading at 1.0 so the line box grips the figures. */
+  // ── Leading on the mono styles is a correctness constraint ──────────────
+  // These two previously ran at 1.00em and 1.12em, and both CLIPPED the tops
+  // of their own figures on Android. It is worth stating why, because the
+  // number that looks safe is not.
+  //
+  // JetBrains Mono declares ascender 1020 and descender 300 per 1000 em, so
+  // its natural line box is 1.32em and the baseline sits 77.3% of the way
+  // down it. Its lining figures stand 0.857em tall. A box only clears them
+  // when 0.773 × lineHeight ≥ 0.857 × fontSize — that is, at 1.11em, before
+  // any allowance for hinting. Anything tighter does not compress the line:
+  // it slices the glyph tops off, and the cut is clean enough to read as a
+  // typeface with flat-topped digits rather than as a bug.
+  //
+  // 1.20em is the floor used here, and every mono style below already clears
+  // it. Tightness at display size belongs in letterSpacing, which is a
+  // property of the type; leading is a property of the box, and starving the
+  // box does not make the figures look gripped, it makes them look cropped.
+
+  /** 56 — the balance hero. */
   monument: {
     fontFamily: fontFamilies.monoBold,
     fontSize: 56,
-    lineHeight: 56,
+    lineHeight: 68,
     letterSpacing: -3.36,
     ...tabular,
   },
@@ -86,7 +104,7 @@ export const typography = {
   amountDisplay: {
     fontFamily: fontFamilies.monoBold,
     fontSize: 34,
-    lineHeight: 38,
+    lineHeight: 41,
     letterSpacing: -1.7,
     ...tabular,
   },
