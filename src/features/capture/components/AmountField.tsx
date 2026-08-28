@@ -120,14 +120,28 @@ function createStyles(theme: AppTheme) {
       color: theme.colors.text.tertiary,
       marginBottom: theme.spacing.sm,
     },
+    // `alignItems: 'baseline'` is the obvious choice here and it is wrong on
+    // Android: Yoga cannot read a usable baseline from a TextInput, and
+    // `includeFontPadding: false` on the input below moves the reference again.
+    // The mark ends up aligned to the input's box BOTTOM rather than its
+    // baseline, which drops the ₦ underneath the digits entirely.
+    //
+    // Bottom-align both boxes instead and nudge the mark onto the shared
+    // baseline. Two sizes in two different families cannot baseline-align in
+    // React Native without an offset, and the right offset depends on each
+    // font's own descent metric — so the constant below was measured on device
+    // rather than derived. Re-check it if either face or size changes.
     figureRow: {
       flexDirection: 'row',
-      alignItems: 'baseline',
+      alignItems: 'flex-end',
     },
     mark: {
       ...theme.typography.display,
       color: theme.colors.text.secondary,
       marginRight: theme.spacing.xs,
+      // translateY, not margin: this corrects where the glyph is PAINTED
+      // without changing the row's height or the rule's position below it.
+      transform: [{ translateY: -4 }],
     },
     markIdle: {
       color: theme.colors.text.disabled,
