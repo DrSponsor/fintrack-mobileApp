@@ -105,11 +105,16 @@ export function ActionButton({
 
   const surfaceStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - press.value * 0.015 }],
-    backgroundColor: interpolateColor(
-      press.value,
-      [0, 1],
-      [theme.colors.action.base, theme.colors.action.deep],
-    ),
+    // A disabled primary drops its fill entirely rather than fading it. See
+    // the note on `surfaceDisabled` for why fading is the wrong instrument on
+    // a dark ground.
+    backgroundColor: disabled
+      ? 'transparent'
+      : interpolateColor(
+          press.value,
+          [0, 1],
+          [theme.colors.action.base, theme.colors.action.deep],
+        ),
   }));
 
   const sweepStyle = useAnimatedStyle(() => {
@@ -137,7 +142,7 @@ export function ActionButton({
         style={[styles.surface, disabled && styles.surfaceDisabled, surfaceStyle]}
         onLayout={handleLayout}
       >
-        <Text style={styles.label} numberOfLines={1}>
+        <Text style={[styles.label, disabled && styles.labelDisabled]} numberOfLines={1}>
           {loading ? loadingLabel : label}
         </Text>
         {loading && (
@@ -162,15 +167,32 @@ function createStyles(theme: AppTheme) {
       // Clips the sweep to the surface.
       overflow: 'hidden',
     },
-    // Only a genuinely unavailable action dims. A working action that is merely
-    // in flight keeps its full presence.
+    // Only a genuinely unavailable action recedes. A working action that is
+    // merely in flight keeps its full presence.
+    //
+    // It recedes by losing its FILL, not by fading. Opacity is the wrong
+    // instrument on a dark ground: fading a light surface toward a near-black
+    // one barely dims it — paper at 40% over #080B12 computes to about
+    // #656667, roughly 3.3:1 against the ground, so the dead control ends up
+    // the brightest filled shape on the screen. Meanwhile the label, which is
+    // dark ON that paper, fades toward the ground it is sitting against and
+    // loses its contrast fastest. Both halves move the wrong way at once.
+    //
+    // An outline reads as unavailable at a glance and leaves the label legible.
     surfaceDisabled: {
-      opacity: 0.4,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.rule.strong,
     },
     label: {
       ...theme.typography.button,
       color: theme.colors.action.on,
       textAlign: 'center',
+    },
+    // text.tertiary rather than text.disabled: 3.77:1 against the ground where
+    // disabled would give 2.1:1. A control being unavailable is not a reason
+    // for the user to be unable to read what it says.
+    labelDisabled: {
+      color: theme.colors.text.tertiary,
     },
 
     sweepTrack: {

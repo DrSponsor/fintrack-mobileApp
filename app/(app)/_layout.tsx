@@ -87,6 +87,12 @@ export default function AppLayout() {
         name="transactions/new"
         options={{
           href: null,
+          // `href: null` removes the tab BUTTON, not the bar: the screen still
+          // renders inside the navigator, so without this the bar sits under a
+          // screen whose only exit is its own ✕. Five competing escape routes
+          // contradict that ✕, and they cost 62pt of height on the one screen
+          // where the keyboard is already taking half the viewport.
+          tabBarStyle: { display: 'none' },
         }}
       />
       {/* Development inspector for the notification listener. Hidden rather

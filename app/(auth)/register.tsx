@@ -94,6 +94,7 @@ export default function RegisterScreen() {
             <RuledField
               index={1}
               label="Email address"
+              voice="identifier"
               placeholder="you@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -124,6 +125,7 @@ export default function RegisterScreen() {
               ref={passwordRef}
               index={2}
               label="Password"
+              voice="identifier"
               placeholder="Something only you would write"
               secureTextEntry={hidePassword}
               autoCapitalize="none"

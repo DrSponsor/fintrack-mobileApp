@@ -90,6 +90,22 @@ export interface RuledFieldProps extends Omit<TextInputProps, 'style'> {
   readonly error?: string | undefined;
   /** Optional control on the right of the caption row — e.g. a SHOW toggle. */
   readonly trailing?: React.ReactNode;
+  /**
+   * Which of the app's two type voices the value is written in. Defaults to
+   * `language`, because most fields hold words.
+   *
+   * `identifier` sets the value in the number face. That is for things a
+   * person VERIFIES rather than reads — email addresses, one-time codes,
+   * account numbers — where monospace is what stops `rn` looking like `m` and
+   * makes a trailing space visible. (It earned that during this project: a
+   * login failed against valid credentials, and the stray space responsible
+   * was visible on screen only because the field was monospaced.)
+   *
+   * `language` sets it in the sans. A merchant name is read, not checked, so
+   * it belongs on the language side of the line `typography.ts` draws for the
+   * whole app.
+   */
+  readonly voice?: 'identifier' | 'language';
 }
 
 /** Width of the left rail. Index, marker and value all start here. */
@@ -97,7 +113,7 @@ const RAIL = 26;
 const INPUT_HEIGHT = 30;
 
 export const RuledField = forwardRef<TextInput, RuledFieldProps>(function RuledField(
-  { label, index, error, trailing, onFocus, onBlur, ...inputProps },
+  { label, index, error, trailing, voice = 'language', onFocus, onBlur, ...inputProps },
   ref,
 ) {
   const { theme } = useTheme();
@@ -196,7 +212,7 @@ export const RuledField = forwardRef<TextInput, RuledFieldProps>(function RuledF
           </View>
           <TextInput
             ref={setRefs}
-            style={styles.input}
+            style={[styles.input, voice === 'language' && styles.inputLanguage]}
             placeholderTextColor={theme.colors.text.disabled}
             selectionColor={theme.colors.action.base}
             cursorColor={theme.colors.action.base}
@@ -260,6 +276,14 @@ function createStyles(theme: AppTheme) {
       padding: 0,
       includeFontPadding: false,
       textAlignVertical: 'center',
+    },
+    // The language voice. Same size and colour, sans instead of mono, so only
+    // the face changes and the rail alignment is untouched.
+    inputLanguage: {
+      fontFamily: theme.typography.body.fontFamily,
+      fontSize: theme.typography.body.fontSize,
+      lineHeight: theme.typography.body.lineHeight,
+      letterSpacing: theme.typography.body.letterSpacing,
     },
 
     rule: {

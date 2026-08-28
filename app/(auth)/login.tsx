@@ -83,6 +83,7 @@ export default function LoginScreen() {
             <RuledField
               index={1}
               label="Email address"
+              voice="identifier"
               placeholder="you@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -113,6 +114,7 @@ export default function LoginScreen() {
               ref={passwordRef}
               index={2}
               label="Password"
+              voice="identifier"
               placeholder="••••••••"
               secureTextEntry={!revealPassword}
               autoCapitalize="none"
