@@ -13,6 +13,7 @@ import type { LedgerEntry } from '@/features/transactions/ledger';
 import type {
   ILedgerRepository,
   LedgerPage,
+  LedgerWindow,
   CorrectionScope,
   CorrectionResult,
 } from './ILedgerRepository';
@@ -28,10 +29,20 @@ import type {
 export const PAGE_SIZE = 40;
 
 class RemoteLedgerRepositoryImpl implements ILedgerRepository {
-  async listTransactions(cursor?: string | undefined, limit: number = PAGE_SIZE): Promise<LedgerPage> {
+  async listTransactions(
+    cursor?: string | undefined,
+    limit: number = PAGE_SIZE,
+    window?: LedgerWindow | undefined,
+  ): Promise<LedgerPage> {
     const response = await apiClient.get<ApiResponse<readonly LedgerEntry[]>>(
       endpoints.transactions.list,
-      { params: { limit, ...(cursor !== undefined ? { cursor } : {}) } },
+      {
+        params: {
+          limit,
+          ...(cursor !== undefined ? { cursor } : {}),
+          ...(window !== undefined ? window : {}),
+        },
+      },
     );
 
     const body = response.data;

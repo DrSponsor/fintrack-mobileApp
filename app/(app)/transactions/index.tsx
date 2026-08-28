@@ -98,7 +98,7 @@ export default function TransactionsScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
-        <Text style={styles.title}>Transactions</Text>
+        <Text style={styles.title}>Entries</Text>
         {/* Manual entry lives here rather than in the tab bar: it is something
             you do about the ledger, not a place in the app. */}
         <Pressable
@@ -122,7 +122,7 @@ export default function TransactionsScreen(): React.JSX.Element {
         <ScrollView contentContainerStyle={styles.stateScroll} refreshControl={control}>
           <Text style={styles.emptyTitle}>Nothing recorded yet</Text>
           <Text style={styles.emptyBody}>
-            Transactions appear here on their own as your bank emails its alerts. You can also
+            Entries appear here on their own as your bank emails its alerts. You can also
             record one yourself.
           </Text>
           <View style={styles.emptyAction}>

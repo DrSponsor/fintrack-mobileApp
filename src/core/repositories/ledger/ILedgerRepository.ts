@@ -42,9 +42,26 @@ export interface CorrectionResult {
   readonly backfilled: number;
 }
 
+/** Bounds a read to a date window. Both ends are ISO instants. */
+export interface LedgerWindow {
+  readonly startDate: string;
+  readonly endDate: string;
+}
+
 export interface ILedgerRepository {
-  /** One page of transactions, newest first. */
-  listTransactions(cursor?: string | undefined, limit?: number): Promise<LedgerPage>;
+  /**
+   * One page of transactions, newest first.
+   *
+   * `window` bounds the read to a date range. The dashboard needs it because a
+   * summary derived from "whatever happened to be loaded" is not a summary —
+   * it is a figure that is silently wrong whenever the month is longer than
+   * one page, which in a finance app is worse than showing nothing.
+   */
+  listTransactions(
+    cursor?: string | undefined,
+    limit?: number,
+    window?: LedgerWindow | undefined,
+  ): Promise<LedgerPage>;
   /**
    * Needed because a transaction carries a category ID, not a name. Fetched
    * once and held for the session — the set changes when the product ships a

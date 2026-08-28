@@ -1,245 +1,327 @@
 /**
- * Dashboard — the ledger.
+ * Dashboard — the month, at a glance.
  *
- * ── What this replaced ───────────────────────────────────────────────────
- * The previous screen predated the design language entirely: floating cards
- * with drop shadows, a "Sync: IDLE" badge, rounded placeholder boxes, and a red
- * Sign Out button sitting in the middle of the content. It also printed a
- * hardcoded "₦0.00" under the label TOTAL BALANCE.
+ * ── What was wrong with the last one ─────────────────────────────────────
+ * It read WatermelonDB through `useLedgerSummary`, while the ledger read the
+ * API. Nothing ever wrote the API's transactions into WatermelonDB — the
+ * SyncEngine those files refer to was never built — so the local store was
+ * permanently empty and the first screen after login reported "0 entries" and
+ * "Balance not known yet" over a ledger holding twenty-two rows and a stated
+ * balance. Two screens, two sources, one of them never filled.
  *
- * That last one was the real defect. See useLedgerSummary for the full
- * argument, but briefly: "we do not know yet" and "you have nothing" are
- * different claims, and showing the second when the first is true tells a
- * person who has just signed up that their money is gone.
+ * Both now read the API, so they cannot disagree. Local-first storage is worth
+ * having and is a separate, deliberate piece of work; a dashboard silently
+ * lying about someone's money while it waits is not.
  *
- * ── The empty state is the first-run design, not a fallback ──────────────
- * Every new account starts here and stays here until the first bank alert
- * arrives, so this is the screen most users will see FIRST and possibly for
- * days. It is built to answer the four questions someone actually has — what is
- * this, why is it empty, what happens next, and do I need to do anything —
- * rather than apologising with an illustration.
+ * ── The screen answers four questions in order ───────────────────────────
+ *   how much do I have          the balance, as the bank last stated it
+ *   what happened this month    in against out, on one rule
+ *   where did it go             the categories, largest first
+ *   what just happened          the newest entries, same rows as the ledger
  *
- * The status block matters more than it looks: an app whose entire mechanism is
- * invisible background listening has to prove it is listening, or "no entries"
- * is indistinguishable from "broken".
+ * Anything that does not answer one of those is not on the screen. The old
+ * version carried a STATUS block reporting "Listening for alerts: STALE" —
+ * a developer's word for a mechanism that was not running, printed as though
+ * it were a reassurance.
  *
- * ── Sign out ─────────────────────────────────────────────────────────────
- * Moved out of the content and set neutral. It was previously a danger-red
- * control in the main scroll, which gave the single most destructive action on
- * the screen the loudest treatment and put it where a thumb lands. Signing out
- * is not an error.
+ * ── Charts, and why there are none ───────────────────────────────────────
+ * The proportions are drawn into the hairlines the layout already has, rather
+ * than added as chart objects on top of it. See FlowBar and BreakdownRow.
  */
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
-import { useAuthStore } from '@/core/store/auth.store';
-import { useSyncStore } from '@/core/store/sync.store';
-import { useAuth } from '@/features/auth/hooks/useAuth';
+import { categoryPalette } from '@/design-system/tokens';
+import { NoticeBand } from '@/design-system/components';
 import { Reveal } from '@/design-system/motion/Reveal';
 import { RollingNumber } from '@/design-system/motion/RollingNumber';
 import { formatKoboToNaira } from '@/shared/components/AmountDisplay/AmountDisplay';
-import { useLedgerSummary } from '@/features/transactions/hooks/useLedgerSummary';
-import type { TransactionModel } from '@/core/database/models/Transaction.model';
-
-/** Content margin. Rules ignore it and run to the screen edge. */
-const MARGIN = 20;
+import { useDashboard } from '@/features/transactions/hooks/useDashboard';
+import { useLedger } from '@/features/transactions/hooks/useLedger';
+import { LedgerRow } from '@/features/transactions/components/LedgerRow';
+import { FlowBar } from '@/features/transactions/components/FlowBar';
+import { BreakdownRow } from '@/features/transactions/components/BreakdownRow';
 
 const MONTH_FORMAT: Intl.DateTimeFormatOptions = { month: 'long', year: 'numeric' };
-const DAY_FORMAT: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+const DAY_FORMAT: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+
+/**
+ * The monument size that lets a given amount fit the measure.
+ *
+ * The hero is a fixed 56pt in the type scale, and ₦1,284,500.00 is fourteen
+ * characters — about 420pt of monospace at that size against 320pt of usable
+ * width. It ran off the edge and took the kobo with it, so the figure read
+ * "₦1,284,500." and the screen quietly lost two digits of someone's money.
+ *
+ * `adjustsFontSizeToFit` cannot help here: RollingNumber draws each digit as
+ * its own animated slot so the odometer can roll them independently, and the
+ * shrink-to-fit measurement works per Text, not across a row of them. So the
+ * size is computed instead.
+ *
+ * Monospace makes that exact rather than a guess — every glyph is 0.6em wide,
+ * and the monument's tracking is −6% of its size, so each character costs
+ * 0.54em however long the number is.
+ */
+const MONUMENT_MAX = 56;
+/** Below this the hero stops being a hero; a longer figure wraps its own
+ *  scale rather than shrinking indefinitely. */
+const MONUMENT_MIN = 30;
+const CHAR_EM = 0.54;
+
+function fitMonument(text: string, available: number): number {
+  if (text.length === 0) return MONUMENT_MAX;
+  const size = Math.floor(available / (text.length * CHAR_EM));
+  return Math.max(MONUMENT_MIN, Math.min(MONUMENT_MAX, size));
+}
+
+/**
+ * A category's colour, chosen by its id rather than its position.
+ *
+ * Position would mean Food is violet in a month it led and blue in a month it
+ * did not, so the palette would carry no meaning at all. Hashing the id keeps
+ * a category the same colour for as long as it exists.
+ */
+function tintFor(categoryId: string): string {
+  let hash = 0;
+  for (let i = 0; i < categoryId.length; i += 1) {
+    hash = (hash * 31 + categoryId.charCodeAt(i)) | 0;
+  }
+  return categoryPalette[Math.abs(hash) % categoryPalette.length] ?? categoryPalette[0] ?? '#7A8599';
+}
 
 export default function DashboardScreen(): React.JSX.Element {
   const { theme } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const user = useAuthStore((state) => state.user);
-  const syncStatus = useSyncStore((state) => state.status);
-  const { logout, isLoading } = useAuth();
-  const { ready, count, recent, balanceKobo, asOf } = useLedgerSummary();
+  const { width } = useWindowDimensions();
+  // The bar is drawn by this app, not measured by guesswork — the navigator
+  // reports what it actually rendered, including the safe-area inset.
+  const tabBarHeight = useBottomTabBarHeight();
+
+  const summary = useDashboard();
+  const { categoryName } = useLedger();
 
   const period = useMemo(
     () => new Date().toLocaleDateString(undefined, MONTH_FORMAT).toUpperCase(),
     [],
   );
 
-  const handleLogout = async (): Promise<void> => {
-    await logout();
-    router.replace('/(auth)/welcome');
-  };
+  const openEntry = useCallback(
+    (id: string) => {
+      Haptics.selectionAsync().catch(() => {});
+      router.push(`/(app)/transactions/${id}`);
+    },
+    [router],
+  );
+
+  const seeAll = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    router.push('/(app)/transactions');
+  }, [router]);
+
+  const hasMonth = summary.entryCount > 0;
+
+  // Sized to the value, and re-sized when it grows a digit. Leading and
+  // tracking scale with it: 1.20em is the floor that clears JetBrains Mono's
+  // figures, and the monument's tracking is −6% of its size at any size.
+  const monument = useMemo(() => {
+    if (summary.balanceKobo === null) return null;
+    const size = fitMonument(
+      formatKoboToNaira(summary.balanceKobo),
+      width - theme.spacing.gutter * 2,
+    );
+    return {
+      fontSize: size,
+      lineHeight: Math.ceil(size * 1.2),
+      letterSpacing: -0.06 * size,
+    };
+  }, [summary.balanceKobo, width, theme.spacing.gutter]);
 
   return (
     <View style={styles.page}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + theme.spacing.xxl }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={summary.refreshing}
+            onRefresh={summary.refresh}
+            tintColor={theme.colors.text.tertiary}
+            colors={[theme.colors.action.base]}
+            progressBackgroundColor={theme.colors.surface.raised}
+          />
+        }
+      >
         {/* ── Masthead ─────────────────────────────────────────────────── */}
         <Reveal index={0}>
-          <View style={styles.rule} />
-          <View style={styles.masthead}>
+          <View style={[styles.masthead, { paddingTop: insets.top + theme.spacing.md }]}>
             <Text style={styles.mastheadMark}>LEDGER</Text>
             <Text style={styles.mastheadMeta}>{period}</Text>
           </View>
-          <View style={styles.rule} />
+          <View style={styles.ruleStrong} />
         </Reveal>
 
-        {/* ── Balance, or the honest absence of one ────────────────────── */}
+        {summary.error !== null && <NoticeBand message={summary.error} />}
+
+        {/* ── Balance ──────────────────────────────────────────────────── */}
         <Reveal index={1}>
           <View style={styles.balanceBlock}>
-            {balanceKobo === null ? (
+            <Text style={styles.label}>Balance</Text>
+            {summary.balanceKobo === null ? (
               <>
-                <Text style={styles.balanceLabel}>BALANCE</Text>
                 <Text style={styles.balanceUnknown}>Not known yet</Text>
-                <Text style={styles.balanceNote}>
+                <Text style={styles.note}>
+                  {/* "We do not know" and "you have nothing" are different
+                      claims, and printing ₦0.00 for the first tells someone
+                      their money is gone. */}
                   Your bank states the balance on each alert. The next one sets this.
                 </Text>
               </>
             ) : (
               <>
-                <Text style={styles.balanceLabel}>BALANCE</Text>
                 <RollingNumber
-                  value={balanceKobo}
+                  value={summary.balanceKobo}
                   format={formatKoboToNaira}
-                  style={styles.balanceAmount}
-                  accessibilityLabel={`Balance ${formatKoboToNaira(balanceKobo)}`}
+                  style={[styles.balanceAmount, monument]}
+                  accessibilityLabel={`Balance ${formatKoboToNaira(summary.balanceKobo)}`}
                 />
-                {asOf !== null && (
-                  <Text style={styles.balanceNote}>
-                    As stated by your bank on {asOf.toLocaleDateString(undefined, DAY_FORMAT)}
-                  </Text>
-                )}
+                <Text style={styles.note}>
+                  {summary.accountCount === 1
+                    ? 'As your bank last stated it'
+                    : `Across ${summary.accountCount} accounts, as last stated`}
+                  {summary.asOf !== null
+                    ? ` · to ${summary.asOf.toLocaleDateString(undefined, DAY_FORMAT)}`
+                    : ''}
+                </Text>
               </>
             )}
           </View>
         </Reveal>
 
-        {/* ── Entries ──────────────────────────────────────────────────── */}
-        <Reveal index={2}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionLabel}>ENTRIES</Text>
-            <Text style={styles.sectionCount}>
-              {ready ? `${count}` : '—'}
-            </Text>
-          </View>
-          <View style={styles.ruleStrong} />
-        </Reveal>
-
-        {recent.length === 0 ? (
-          <Reveal index={3}>
-            <EmptyLedger ready={ready} styles={styles} />
+        {!summary.ready ? (
+          <Reveal index={2}>
+            <Text style={styles.holding}>Reading your ledger…</Text>
+          </Reveal>
+        ) : !hasMonth ? (
+          <Reveal index={2}>
+            <EmptyMonth styles={styles} onManual={() => router.push('/(app)/transactions/new')} />
           </Reveal>
         ) : (
-          recent.map((entry, index) => (
-            <Reveal key={entry.id} index={3 + index}>
-              <LedgerRow entry={entry} styles={styles} />
+          <>
+            {/* ── This month ───────────────────────────────────────────── */}
+            <Reveal index={2}>
+              <SectionHead
+                label="This month"
+                meta={`${summary.entryCount} ${summary.entryCount === 1 ? 'entry' : 'entries'}`}
+                styles={styles}
+              />
+              <FlowBar inKobo={summary.inKobo} outKobo={summary.outKobo} />
             </Reveal>
-          ))
+
+            {/* ── Where it went ────────────────────────────────────────── */}
+            {summary.breakdown.length > 0 && (
+              <Reveal index={3}>
+                <SectionHead label="Where it went" styles={styles} />
+                {summary.breakdown.map((slice) => (
+                  <BreakdownRow
+                    key={slice.categoryId}
+                    name={slice.name}
+                    spentKobo={slice.spentKobo}
+                    share={slice.share}
+                    tint={tintFor(slice.categoryId)}
+                  />
+                ))}
+              </Reveal>
+            )}
+
+            {/* ── Recent ───────────────────────────────────────────────── */}
+            <Reveal index={4}>
+              <SectionHead label="Recent" action="See all" onAction={seeAll} styles={styles} />
+            </Reveal>
+            {summary.recent.map((entry, index) => (
+              <Reveal key={entry.id} index={5 + index}>
+                <LedgerRow
+                  entry={entry}
+                  categoryName={categoryName(entry.categoryId)}
+                  onPress={openEntry}
+                />
+              </Reveal>
+            ))}
+          </>
         )}
-
-        {/* ── Status: proof that an invisible mechanism is running ─────── */}
-        <Reveal index={10}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionLabel}>STATUS</Text>
-          </View>
-          <View style={styles.ruleStrong} />
-
-          <StatusRow index={1} label="Listening for alerts" value={syncStatus.toUpperCase()} styles={styles} />
-          <StatusRow index={2} label="Entries recorded" value={ready ? String(count) : '—'} styles={styles} />
-          <StatusRow index={3} label="Signed in as" value={user?.email ?? '—'} styles={styles} />
-          <View style={styles.rule} />
-        </Reveal>
-
-        <Reveal index={11}>
-          <Pressable
-            style={styles.signOut}
-            onPress={handleLogout}
-            disabled={isLoading}
-            accessibilityRole="button"
-            accessibilityLabel="Sign out"
-            accessibilityState={{ disabled: isLoading }}
-          >
-            <Text style={styles.signOutLabel}>Sign out</Text>
-          </Pressable>
-        </Reveal>
       </ScrollView>
     </View>
   );
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────
+// ── Section head ──────────────────────────────────────────────────────────
 
-interface EmptyProps {
-  readonly ready: boolean;
+interface SectionHeadProps {
+  readonly label: string;
+  readonly meta?: string;
+  readonly action?: string;
+  readonly onAction?: () => void;
   readonly styles: ReturnType<typeof createStyles>;
 }
 
-function EmptyLedger({ ready, styles }: EmptyProps): React.JSX.Element {
-  // Hold rather than assert while the first query resolves — flashing "nothing
-  // here" at someone who does have entries is worse than a moment of nothing.
-  if (!ready) {
-    return (
-      <View style={styles.empty}>
-        <Text style={styles.emptyBody}>Reading your ledger…</Text>
+function SectionHead({ label, meta, action, onAction, styles }: SectionHeadProps): React.JSX.Element {
+  return (
+    <>
+      <View style={styles.sectionHead}>
+        <Text style={styles.label}>{label}</Text>
+        {meta !== undefined && <Text style={styles.sectionMeta}>{meta}</Text>}
+        {action !== undefined && (
+          <Pressable onPress={onAction} accessibilityRole="button" hitSlop={10}>
+            <Text style={styles.sectionAction}>{action}</Text>
+          </Pressable>
+        )}
       </View>
-    );
-  }
+      <View style={styles.ruleStrong} />
+    </>
+  );
+}
 
+// ── Empty month ───────────────────────────────────────────────────────────
+
+/**
+ * The first-run screen, and the one a new account sits on for days.
+ *
+ * It answers what this is, why it is empty and what happens next — in three
+ * short lines rather than a paragraph. The previous version explained the
+ * mechanism at length, which is reassuring to write and tiring to read.
+ */
+function EmptyMonth({
+  styles,
+  onManual,
+}: {
+  readonly styles: ReturnType<typeof createStyles>;
+  readonly onManual: () => void;
+}): React.JSX.Element {
   return (
     <View style={styles.empty}>
-      <Text style={styles.emptyTitle}>No entries yet.</Text>
+      <Text style={styles.emptyTitle}>Nothing yet this month.</Text>
       <Text style={styles.emptyBody}>
-        This ledger fills itself. The next alert your bank sends becomes the first line —
-        there is nothing to set up and nothing to type.
+        This ledger fills itself. When your bank sends an alert, the entry appears here on
+        its own — there is nothing to set up and nothing to type.
       </Text>
-    </View>
-  );
-}
-
-// ── Rows ──────────────────────────────────────────────────────────────────
-
-interface LedgerRowProps {
-  readonly entry: TransactionModel;
-  readonly styles: ReturnType<typeof createStyles>;
-}
-
-function LedgerRow({ entry, styles }: LedgerRowProps): React.JSX.Element {
-  const inbound = entry.type === 'CREDIT';
-  // Model stores a JS number; convert at the presentation boundary so the
-  // formatter still receives exact minor units.
-  const amount = formatKoboToNaira(BigInt(entry.amountKobo));
-
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowDate}>
-        {entry.transactionDate.toLocaleDateString(undefined, DAY_FORMAT).toUpperCase()}
-      </Text>
-      <View style={styles.rowBody}>
-        <Text style={styles.rowMerchant} numberOfLines={1}>
-          {entry.customMerchant ?? entry.merchantName}
-        </Text>
-      </View>
-      <Text style={[styles.rowAmount, inbound && styles.rowAmountIn]}>
-        {inbound ? '+' : '−'}
-        {amount}
-      </Text>
-    </View>
-  );
-}
-
-interface StatusRowProps {
-  readonly index: number;
-  readonly label: string;
-  readonly value: string;
-  readonly styles: ReturnType<typeof createStyles>;
-}
-
-function StatusRow({ index, label, value, styles }: StatusRowProps): React.JSX.Element {
-  return (
-    <View style={styles.statusRow}>
-      <Text style={styles.statusIndex}>{String(index).padStart(2, '0')}</Text>
-      <Text style={styles.statusLabel}>{label}</Text>
-      <Text style={styles.statusValue} numberOfLines={1}>
-        {value}
-      </Text>
+      <Pressable onPress={onManual} accessibilityRole="button" style={styles.emptyAction} hitSlop={8}>
+        <Text style={styles.emptyActionLabel}>Or record one by hand</Text>
+      </Pressable>
     </View>
   );
 }
@@ -248,169 +330,105 @@ function createStyles(theme: AppTheme) {
   return StyleSheet.create({
     page: {
       flex: 1,
-      // The root Material layer owns the ground and the atmospheric wash.
+      // The Material layer at the root owns the ground colour.
       backgroundColor: 'transparent',
     },
     scroll: {
-      paddingTop: theme.spacing.xxl,
-      paddingBottom: theme.spacing.xxl,
+      paddingHorizontal: theme.spacing.gutter,
     },
 
-    // Full-bleed — the difference between a document and a stack of cards.
-    rule: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.rule.default,
+    masthead: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      paddingBottom: theme.spacing.md,
     },
+    mastheadMark: {
+      ...theme.typography.label,
+      letterSpacing: 3,
+      color: theme.colors.text.primary,
+    },
+    mastheadMeta: {
+      ...theme.typography.technicalSmall,
+      letterSpacing: 1.4,
+      color: theme.colors.text.tertiary,
+    },
+
     ruleStrong: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: theme.colors.rule.strong,
     },
 
-    masthead: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: MARGIN,
-      paddingVertical: theme.spacing.sm,
-    },
-    mastheadMark: {
+    label: {
       ...theme.typography.micro,
-      color: theme.colors.text.primary,
-      letterSpacing: 3.2,
-    },
-    mastheadMeta: {
-      ...theme.typography.technicalSmall,
+      letterSpacing: 1.2,
       color: theme.colors.text.tertiary,
+      flex: 1,
     },
 
     balanceBlock: {
-      paddingHorizontal: MARGIN,
       paddingTop: theme.spacing.xl,
       paddingBottom: theme.spacing.xxl,
-    },
-    balanceLabel: {
-      ...theme.typography.micro,
-      color: theme.colors.text.tertiary,
-      letterSpacing: 1.6,
-      marginBottom: theme.spacing.sm,
     },
     balanceAmount: {
       ...theme.typography.monument,
       color: theme.colors.text.primary,
+      marginTop: theme.spacing.sm,
     },
-    // Set in the language face, not the number face: it is a statement about
-    // knowledge, not a figure, and setting it in mono would imply a value.
     balanceUnknown: {
-      ...theme.typography.title,
+      ...theme.typography.display,
       color: theme.colors.text.secondary,
+      marginTop: theme.spacing.sm,
     },
-    balanceNote: {
+    note: {
       ...theme.typography.caption,
       color: theme.colors.text.tertiary,
       marginTop: theme.spacing.sm,
-      maxWidth: 300,
+    },
+
+    holding: {
+      ...theme.typography.body,
+      color: theme.colors.text.tertiary,
+      paddingTop: theme.spacing.xl,
     },
 
     sectionHead: {
       flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: MARGIN,
-      paddingVertical: theme.spacing.sm,
-      marginTop: theme.spacing.lg,
+      alignItems: 'baseline',
+      paddingTop: theme.spacing.xxl,
+      paddingBottom: theme.spacing.sm,
+      gap: theme.spacing.md,
     },
-    sectionLabel: {
-      ...theme.typography.micro,
-      color: theme.colors.text.tertiary,
-      letterSpacing: 1.6,
-    },
-    sectionCount: {
+    sectionMeta: {
       ...theme.typography.technicalSmall,
-      color: theme.colors.text.disabled,
+      color: theme.colors.text.tertiary,
+    },
+    sectionAction: {
+      ...theme.typography.micro,
+      letterSpacing: 1.2,
+      color: theme.colors.text.secondary,
     },
 
     empty: {
-      paddingHorizontal: MARGIN,
-      paddingVertical: theme.spacing.xl,
+      paddingTop: theme.spacing.xxl,
     },
     emptyTitle: {
-      ...theme.typography.heading,
+      ...theme.typography.title,
       color: theme.colors.text.primary,
-      marginBottom: theme.spacing.sm,
     },
     emptyBody: {
       ...theme.typography.body,
       color: theme.colors.text.secondary,
-      maxWidth: 320,
+      marginTop: theme.spacing.md,
     },
-
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: MARGIN,
-      paddingVertical: theme.spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.rule.faint,
+    emptyAction: {
+      marginTop: theme.spacing.xl,
+      minHeight: 44,
+      justifyContent: 'center',
     },
-    rowDate: {
-      ...theme.typography.technicalSmall,
-      color: theme.colors.text.disabled,
-      width: 54,
-    },
-    rowBody: {
-      flex: 1,
-    },
-    rowMerchant: {
+    emptyActionLabel: {
       ...theme.typography.bodyStrong,
-      color: theme.colors.text.primary,
-    },
-    rowAmount: {
-      ...theme.typography.amountRow,
-      color: theme.colors.text.primary,
-      marginLeft: theme.spacing.md,
-    },
-    // Only inbound money is coloured. A week of ordinary spending should not
-    // render as a screen full of warnings.
-    rowAmountIn: {
-      color: theme.colors.money.inbound,
-    },
-
-    statusRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: MARGIN,
-      paddingVertical: theme.spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.colors.rule.faint,
-    },
-    statusIndex: {
-      ...theme.typography.technicalSmall,
-      color: theme.colors.text.disabled,
-      width: 26,
-    },
-    statusLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text.secondary,
-      flex: 1,
-    },
-    statusValue: {
-      ...theme.typography.technicalSmall,
-      color: theme.colors.text.primary,
-      marginLeft: theme.spacing.md,
-      maxWidth: 180,
-      textAlign: 'right',
-    },
-
-    // Neutral, and out of the content. Signing out is not an error.
-    signOut: {
-      marginTop: theme.spacing.xxl,
-      marginHorizontal: MARGIN,
-      paddingVertical: theme.spacing.md,
-      alignItems: 'center',
-    },
-    signOutLabel: {
-      ...theme.typography.button,
-      color: theme.colors.text.tertiary,
+      color: theme.colors.action.base,
     },
   });
 }
