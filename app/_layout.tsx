@@ -4,7 +4,9 @@ import { View, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { DatabaseProvider } from '@nozbe/watermelondb/DatabaseProvider';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { database } from '@/core/database/database';
+import { queryClient } from '@/core/api/queryClient';
 import { ThemeProvider } from '@/design-system/ThemeProvider';
 import { fontAssets } from '@/design-system/typography';
 import { colors } from '@/design-system/tokens';
@@ -66,16 +68,18 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary level="global">
-      <DatabaseProvider database={database}>
-        <ThemeProvider preference={themePreference} onPreferenceChange={setThemePreference}>
-          {/* Owns the app's ground colour and the atmospheric light wash behind
-              content. Every screen below renders on a transparent background so
-              the wash stays visible. */}
-          <Material>
-            <AppContent />
-          </Material>
-        </ThemeProvider>
-      </DatabaseProvider>
+      <QueryClientProvider client={queryClient}>
+        <DatabaseProvider database={database}>
+          <ThemeProvider preference={themePreference} onPreferenceChange={setThemePreference}>
+            {/* Owns the app's ground colour and the atmospheric light wash
+                behind content. Every screen below renders on a transparent
+                background so the wash stays visible. */}
+            <Material>
+              <AppContent />
+            </Material>
+          </ThemeProvider>
+        </DatabaseProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

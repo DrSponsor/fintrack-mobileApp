@@ -80,6 +80,9 @@ export interface AccountSummary {
 
 export interface CategorySummary {
   readonly id: string;
+  /** Stable slug — 'food-groceries'. For lookups; never put this on screen. */
   readonly name: string;
+  /** What a person reads — 'Food & groceries'. */
+  readonly displayName: string;
   readonly icon: string;
 }
