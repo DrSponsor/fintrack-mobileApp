@@ -10,7 +10,12 @@ import { apiClient, type ApiResponse, api } from '@/core/api/client';
 import { endpoints } from '@/core/api/endpoints';
 import type { CategorySummary } from '@/features/capture/types';
 import type { LedgerEntry } from '@/features/transactions/ledger';
-import type { ILedgerRepository, LedgerPage } from './ILedgerRepository';
+import type {
+  ILedgerRepository,
+  LedgerPage,
+  CorrectionScope,
+  CorrectionResult,
+} from './ILedgerRepository';
 
 /**
  * Rows per request.
@@ -42,6 +47,25 @@ class RemoteLedgerRepositoryImpl implements ILedgerRepository {
 
   async listCategories(): Promise<readonly CategorySummary[]> {
     return api.get<readonly CategorySummary[]>(endpoints.categories.list);
+  }
+
+  async getTransaction(id: string): Promise<LedgerEntry> {
+    return api.get<LedgerEntry>(endpoints.transactions.detail(id));
+  }
+
+  async correctCategory(
+    id: string,
+    categoryId: string,
+    scope: CorrectionScope,
+  ): Promise<CorrectionResult> {
+    // The server answers with the reach it applied and how many earlier rows
+    // it rewrote. Both are reported to the user: silently editing history is
+    // how someone stops trusting their own ledger.
+    const body = await api.patch<{ readonly scope: CorrectionScope; readonly backfilled: number }>(
+      endpoints.transactions.updateCategory(id),
+      { categoryId, scope },
+    );
+    return { scope: body.scope, backfilled: body.backfilled };
   }
 }
 

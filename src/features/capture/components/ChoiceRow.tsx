@@ -35,6 +35,14 @@ export interface ChoiceRowProps {
   /** Shown in place of the list when there is nothing to choose from. */
   readonly emptyMessage?: string;
   readonly optional?: boolean;
+  /**
+   * 1-based position on the form's left rail, rendered zero-padded as 01, 02.
+   * Same shape as RuledField's, so a screen numbers every field the same way. Optional because not every
+   * screen numbers its fields — but when a screen numbers ANY of them it must
+   * number all of them, or the sequence reads 02, 03, 04 with a hole where 01
+   * should be and the unnumbered row sits off the rail every other row shares.
+   */
+  readonly index?: number;
 }
 
 export function ChoiceRow({
@@ -46,6 +54,7 @@ export function ChoiceRow({
   error,
   emptyMessage = 'Nothing to choose from yet.',
   optional = false,
+  index,
 }: ChoiceRowProps): React.JSX.Element {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -63,12 +72,19 @@ export function ChoiceRow({
         accessibilityHint="Opens a list of options"
       >
         <View style={styles.captionRow}>
+          {index !== undefined && (
+            <Text style={styles.index}>{String(index).padStart(2, '0')}</Text>
+          )}
           <Text style={styles.caption}>{label}</Text>
+          <View style={styles.captionSpacer} />
           {optional && <Text style={styles.optional}>Optional</Text>}
         </View>
-        <Text style={[styles.value, selected === undefined && styles.valueEmpty]} numberOfLines={1}>
-          {selected?.label ?? placeholder}
-        </Text>
+        <View style={styles.valueRow}>
+          {index !== undefined && <View style={styles.rail} />}
+          <Text style={[styles.value, selected === undefined && styles.valueEmpty]} numberOfLines={1}>
+            {selected?.label ?? placeholder}
+          </Text>
+        </View>
       </Pressable>
 
       <View style={[styles.rule, error !== undefined && styles.ruleError]} />
@@ -131,6 +147,9 @@ export function ChoiceRow({
   );
 }
 
+/** Left rail width. Must match RuledField, or numbered rows drift apart. */
+const RAIL = 26;
+
 function createStyles(theme: AppTheme) {
   return StyleSheet.create({
     block: {
@@ -146,7 +165,25 @@ function createStyles(theme: AppTheme) {
     captionRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+    },
+    // Same rail width as RuledField, so a numbered ChoiceRow and a numbered
+    // RuledField put their captions and values on exactly one left edge.
+    index: {
+      ...theme.typography.technicalSmall,
+      width: RAIL,
+      color: theme.colors.text.disabled,
+    },
+    // Pushes "Optional" to the right without space-between, which would also
+    // push the label away from its index.
+    captionSpacer: {
+      flex: 1,
+    },
+    valueRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    rail: {
+      width: RAIL,
     },
     caption: {
       ...theme.typography.micro,

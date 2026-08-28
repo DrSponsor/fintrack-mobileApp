@@ -256,7 +256,7 @@ export default function NewTransactionScreen(): React.JSX.Element {
           control={control}
           name="when"
           render={({ field: { value, onChange } }) => (
-            <WhenField value={value} onChange={onChange} error={errors.when?.message} />
+            <WhenField index={2} value={value} onChange={onChange} error={errors.when?.message} />
           )}
         />
 
@@ -265,6 +265,7 @@ export default function NewTransactionScreen(): React.JSX.Element {
           name="accountId"
           render={({ field: { value, onChange } }) => (
             <ChoiceRow
+              index={3}
               label="Account"
               options={accountOptions}
               selectedId={value.length > 0 ? value : undefined}
@@ -281,6 +282,7 @@ export default function NewTransactionScreen(): React.JSX.Element {
           name="categoryId"
           render={({ field: { value, onChange } }) => (
             <ChoiceRow
+              index={4}
               label="Category"
               options={categoryOptions}
               selectedId={value}

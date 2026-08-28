@@ -25,15 +25,26 @@ import { useTheme } from '../ThemeProvider';
 import type { AppTheme } from '../theme';
 import { SETTLE, useReducedMotion } from '../motion/springs';
 
+/**
+ * Danger is the default because a band that interrupts is nearly always
+ * reporting a failure. `success` exists for the one case that is not: an
+ * action whose CONSEQUENCE the user could not otherwise see — a correction
+ * that also rewrote earlier entries, say. It is not for confirming that
+ * something ordinary worked; a control that visibly changes has already said
+ * so, and a band on top of it is noise.
+ */
+export type NoticeTone = 'danger' | 'success';
+
 export interface NoticeBandProps {
   readonly message: string;
   /** Machine-readable cause, shown small and right-aligned. */
   readonly code?: string | undefined;
+  readonly tone?: NoticeTone;
 }
 
-export function NoticeBand({ message, code }: NoticeBandProps): React.JSX.Element {
+export function NoticeBand({ message, code, tone = 'danger' }: NoticeBandProps): React.JSX.Element {
   const { theme } = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, tone), [theme, tone]);
   const reducedMotion = useReducedMotion();
 
   const enter = useSharedValue(reducedMotion ? 1 : 0);
@@ -72,14 +83,19 @@ export function NoticeBand({ message, code }: NoticeBandProps): React.JSX.Elemen
   );
 }
 
-function createStyles(theme: AppTheme) {
+function createStyles(theme: AppTheme, tone: NoticeTone) {
+  // One hue drives the whole band — rule, marker, message and code. Mixing
+  // them is how a tinted band stops reading as a single object.
+  const ink = tone === 'success' ? theme.colors.state.success : theme.colors.state.danger;
+  const wash = tone === 'success' ? theme.colors.state.successWash : theme.colors.state.dangerWash;
+
   return StyleSheet.create({
     band: {
-      backgroundColor: theme.colors.state.dangerWash,
+      backgroundColor: wash,
     },
     rule: {
       height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.state.danger,
+      backgroundColor: ink,
     },
     body: {
       flexDirection: 'row',
@@ -91,16 +107,16 @@ function createStyles(theme: AppTheme) {
     marker: {
       width: 2,
       height: 16,
-      backgroundColor: theme.colors.state.danger,
+      backgroundColor: ink,
     },
     message: {
       ...theme.typography.caption,
-      color: theme.colors.state.danger,
+      color: ink,
       flex: 1,
     },
     code: {
       ...theme.typography.technicalSmall,
-      color: theme.colors.state.danger,
+      color: ink,
       opacity: 0.6,
     },
   });

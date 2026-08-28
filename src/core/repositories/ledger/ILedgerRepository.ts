@@ -21,6 +21,27 @@ export interface LedgerPage {
   readonly hasMore: boolean;
 }
 
+/**
+ * How far a correction reaches.
+ *
+ *   transaction  only this entry — "this particular payment was different"
+ *   merchant     this counterparty in general, backfilling earlier entries
+ *
+ * The distinction is not cosmetic. The same person can receive money for food
+ * one week and a thrift contribution the next, so a correction on a transfer
+ * describes THAT payment and must not rewrite months of history. The server
+ * picks a sensible default when none is given; this exists so the user can
+ * override it, because only they know which of the two they meant.
+ */
+export type CorrectionScope = 'transaction' | 'merchant';
+
+export interface CorrectionResult {
+  /** The reach that was actually applied — the server's default, if none was sent. */
+  readonly scope: CorrectionScope;
+  /** How many EARLIER entries were also changed. Zero for a single correction. */
+  readonly backfilled: number;
+}
+
 export interface ILedgerRepository {
   /** One page of transactions, newest first. */
   listTransactions(cursor?: string | undefined, limit?: number): Promise<LedgerPage>;
@@ -30,4 +51,9 @@ export interface ILedgerRepository {
    * new category, not while a person is scrolling.
    */
   listCategories(): Promise<readonly CategorySummary[]>;
+  /** One transaction. The detail screen reads it fresh rather than trusting a
+   *  row the list may have cached before a correction. */
+  getTransaction(id: string): Promise<LedgerEntry>;
+  /** Re-files a transaction, returning what the change actually reached. */
+  correctCategory(id: string, categoryId: string, scope: CorrectionScope): Promise<CorrectionResult>;
 }

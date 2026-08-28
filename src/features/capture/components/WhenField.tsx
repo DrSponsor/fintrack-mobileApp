@@ -29,6 +29,9 @@ import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
 
 export interface WhenFieldProps {
+  /** 1-based position on the form rail, rendered zero-padded. Matches RuledField. See ChoiceRow for why partial
+   *  numbering is worse than none. */
+  readonly index?: number;
   readonly value: Date;
   readonly onChange: (next: Date) => void;
   readonly error?: string | undefined;
@@ -79,7 +82,7 @@ export function describeWhen(value: Date, now: Date = new Date()): string {
   return `${day} at ${time}`;
 }
 
-export function WhenField({ value, onChange, error }: WhenFieldProps): React.JSX.Element {
+export function WhenField({ value, onChange, error, index }: WhenFieldProps): React.JSX.Element {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -111,7 +114,12 @@ export function WhenField({ value, onChange, error }: WhenFieldProps): React.JSX
 
   return (
     <View style={styles.block}>
-      <Text style={styles.caption}>When</Text>
+      <View style={styles.captionRow}>
+        {index !== undefined && (
+            <Text style={styles.index}>{String(index).padStart(2, '0')}</Text>
+          )}
+        <Text style={styles.caption}>When</Text>
+      </View>
 
       <View style={styles.resolvedRow}>
         <Text style={styles.resolved} accessibilityLiveRegion="polite">
@@ -171,6 +179,15 @@ function createStyles(theme: AppTheme) {
   return StyleSheet.create({
     block: {
       paddingTop: theme.spacing.lg,
+    },
+    captionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    index: {
+      ...theme.typography.technicalSmall,
+      width: 26,
+      color: theme.colors.text.disabled,
     },
     caption: {
       ...theme.typography.micro,
