@@ -38,11 +38,18 @@ function share(part: bigint, whole: bigint): number {
  * like a month where you spent almost nothing. The question the breakdown
  * answers is "where did my money go", and income is not somewhere it went.
  *
- * ── Transfers out are spending here ──────────────────────────────────────
- * Money sent to a person has left the account, and a breakdown that hid it
- * would not add up to what actually went out. Whether it was "really" an
+ * ── Transfers to a PERSON are spending; transfers to YOURSELF are not ────
+ * Money sent to someone else has left the account, and a breakdown that hid
+ * it would not add up to what actually went out. Whether it was "really" an
  * expense is a question for the Analysis tab, which can afford nuance; a
  * glance cannot.
+ *
+ * Money moved between the user's own accounts is different in kind, not in
+ * degree: nothing left. Two banks each report their half, and counting both
+ * adds the same amount to income AND to spending while putting a phantom
+ * category at the top of the breakdown. Those rows carry a `transferGroupId`
+ * and are skipped here — see TransferMatcherService on the server for how the
+ * pairing is established, and why its window is deliberately narrow.
  */
 export function summariseMonth(
   entries: readonly LedgerEntry[],
@@ -53,6 +60,11 @@ export function summariseMonth(
   const perCategory = new Map<string, bigint>();
 
   for (const entry of entries) {
+    // Money the user moved between their own accounts is not income and not
+    // spending — their position never changed. Counting both halves would
+    // inflate IN and OUT by the same amount and put a phantom category at the
+    // top of the breakdown. Both rows still appear in the ledger.
+    if (entry.transferGroupId !== null) continue;
     const amount = BigInt(entry.amountKobo);
     if (entry.type === 'CREDIT') {
       inKobo += amount;
@@ -117,6 +129,10 @@ export function spendCurve(entries: readonly LedgerEntry[], now: Date = new Date
   const perDay = new Array<bigint>(today).fill(0n);
   for (const entry of entries) {
     if (entry.type === 'CREDIT') continue;
+    // Same reason as summariseMonth: a transfer out is not spending, and
+    // letting it into the curve would bend the projection upward for money
+    // that never left.
+    if (entry.transferGroupId !== null) continue;
     const when = new Date(entry.transactionDate);
     // Guard the window: a caller can hand this rows outside the month, and a
     // stray row must not write past the end of the array.

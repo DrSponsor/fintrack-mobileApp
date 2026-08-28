@@ -20,6 +20,7 @@ function entry(over: Partial<LedgerEntry> & Pick<LedgerEntry, 'id'>): LedgerEntr
     source: 'MANUAL',
     isVerified: false,
     providerRef: null,
+    transferGroupId: null,
     createdAt: '2026-08-24T14:28:00.000Z',
     ...over,
   };

@@ -55,7 +55,17 @@ export function LedgerRow({ entry, categoryName, onPress }: LedgerRowProps): Rea
   // "Food & groceries · 2:28 pm", falling back to just the time rather than
   // printing a placeholder. A row that says "Uncategorised" teaches nothing;
   // one that simply omits the category says the same thing more quietly.
-  const meta = categoryName !== undefined ? `${categoryName} · ${entryTime(when)}` : entryTime(when);
+  // A linked row says so instead of naming a category. Without this the two
+  // halves of one transfer read as an unexplained pair of transactions, and
+  // the user would reasonably conclude the app had double-counted them — the
+  // very thing the pairing exists to prevent. It also earns them their place
+  // in a ledger whose totals deliberately ignore them.
+  const transfer = entry.transferGroupId !== null;
+  const meta = transfer
+    ? `Between your accounts · ${entryTime(when)}`
+    : categoryName !== undefined
+      ? `${categoryName} · ${entryTime(when)}`
+      : entryTime(when);
 
   return (
     <Pressable
@@ -66,7 +76,7 @@ export function LedgerRow({ entry, categoryName, onPress }: LedgerRowProps): Rea
       // announcing "Shoprite, minus, 5,000 naira" is parsing punctuation aloud.
       accessibilityLabel={`${entry.merchantName}, ${inbound ? 'received' : 'paid'} ${amount.slice(1)}, ${meta}`}
     >
-      <View style={[styles.tick, { backgroundColor: tint }]} />
+      <View style={[styles.tick, { backgroundColor: transfer ? theme.colors.rule.strong : tint }]} />
       <View style={styles.body}>
         <Text style={styles.merchant} numberOfLines={1}>
           {entry.merchantName}
@@ -76,7 +86,11 @@ export function LedgerRow({ entry, categoryName, onPress }: LedgerRowProps): Rea
         </Text>
       </View>
       <Text
-        style={[styles.amount, inbound && { color: theme.colors.money.inbound }]}
+        style={[
+          styles.amount,
+          inbound && !transfer && { color: theme.colors.money.inbound },
+          transfer && { color: theme.colors.text.tertiary },
+        ]}
         numberOfLines={1}
       >
         {amount}

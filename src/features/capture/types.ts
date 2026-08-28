@@ -31,6 +31,16 @@ export interface CapturedTransaction {
    * records describe the same money.
    */
   readonly providerRef: string | null;
+  /**
+   * Set when this row is one half of money moved between the user's own
+   * accounts — a debit on one and the matching credit on another.
+   *
+   * Both rows are kept and both are shown, because each is a real record from
+   * a different bank. What must not happen is counting one as income and the
+   * other as spending: the user's position never changed. Every total on the
+   * dashboard skips anything carrying this.
+   */
+  readonly transferGroupId: string | null;
   readonly createdAt: string;
 }
 

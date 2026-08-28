@@ -5,6 +5,7 @@ const NAMES = new Map([
   ['food', 'Food & groceries'],
   ['transport', 'Transport'],
   ['salary', 'Salary'],
+  ['transfers', 'Transfers'],
 ]);
 
 let seq = 0;
@@ -25,6 +26,7 @@ function entry(
     source: 'EMAIL',
     isVerified: true,
     providerRef: null,
+    transferGroupId: null,
     createdAt: '2026-08-20T10:00:00.000Z',
   };
 }
@@ -201,5 +203,71 @@ describe('spendCurve', () => {
     // A rate held as a Number would round here; the integer path does not.
     const curve = spendCurve([on(1, '9007199254740993')], NOW);
     expect(curve.projectedKobo).toBe((9_007_199_254_740_993n * 31n) / 15n);
+  });
+});
+
+describe('money moved between the user’s own accounts', () => {
+  const NOW = new Date(2026, 7, 15, 12, 0, 0);
+
+  function paired(day: number, amountKobo: string, type: 'DEBIT' | 'CREDIT'): LedgerEntry {
+    return {
+      ...entry(amountKobo, type, 'transfers'),
+      transferGroupId: 'group-1',
+      transactionDate: new Date(2026, 7, day, 10, 0, 0).toISOString(),
+    };
+  }
+
+  it('counts neither half as income or spending', () => {
+    // The user's position never changed. Counting both would add ₦50,000 to IN
+    // and ₦50,000 to OUT for money that never left.
+    const result = summariseMonth(
+      [paired(3, '5000000', 'DEBIT'), paired(3, '5000000', 'CREDIT')],
+      NAMES,
+    );
+
+    expect(result.inKobo).toBe(0n);
+    expect(result.outKobo).toBe(0n);
+  });
+
+  it('keeps a phantom category out of the breakdown', () => {
+    const result = summariseMonth(
+      [
+        paired(3, '5000000', 'DEBIT'),
+        paired(3, '5000000', 'CREDIT'),
+        entry('100000', 'DEBIT', 'food'),
+      ],
+      NAMES,
+    );
+
+    expect(result.breakdown).toHaveLength(1);
+    expect(result.breakdown[0]?.categoryId).toBe('food');
+    // And the surviving category is 100% of spending, not a sliver of a total
+    // inflated by money that never left.
+    expect(result.breakdown[0]?.share).toBe(1);
+  });
+
+  it('leaves the projection alone', () => {
+    // A transfer out would otherwise bend the curve upward for the rest of the
+    // month, forecasting spending that will never happen.
+    const withTransfer = spendCurve(
+      [paired(1, '5000000', 'DEBIT'), { ...entry('150000', 'DEBIT', 'food'), transactionDate: new Date(2026, 7, 1).toISOString() }],
+      NOW,
+    );
+    const without = spendCurve(
+      [{ ...entry('150000', 'DEBIT', 'food'), transactionDate: new Date(2026, 7, 1).toISOString() }],
+      NOW,
+    );
+
+    expect(withTransfer.spentKobo).toBe(without.spentKobo);
+    expect(withTransfer.projectedKobo).toBe(without.projectedKobo);
+  });
+
+  it('still counts a transfer to somebody else as spending', () => {
+    // Only PAIRED rows are excluded. Money sent to a person has genuinely left
+    // the account, and hiding it would make the breakdown stop adding up.
+    const result = summariseMonth([entry('5000000', 'DEBIT', 'transfers')], NAMES);
+
+    expect(result.outKobo).toBe(5_000_000n);
+    expect(result.breakdown).toHaveLength(1);
   });
 });

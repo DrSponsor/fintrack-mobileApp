@@ -31,6 +31,7 @@ function makeTransaction(overrides: Partial<CapturedTransaction> = {}): Captured
     source: 'MANUAL',
     isVerified: false,
     providerRef: null,
+    transferGroupId: null,
     createdAt: PAYLOAD.transactionDate,
     ...overrides,
   };
