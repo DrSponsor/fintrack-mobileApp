@@ -203,8 +203,21 @@ export default function NewTransactionScreen(): React.JSX.Element {
         {loadError !== null && <NoticeBand message={loadError} />}
         {error !== null && <NoticeBand message={error} code={errorCode} />}
 
+        {/* This band used to point at nothing: there was no screen anywhere in
+            the app that could add an account, so the one instruction it gave
+            was impossible to follow. */}
         {hasNoAccounts && (
-          <NoticeBand message="Add an account first — a transaction has to belong to one." />
+          <>
+            <NoticeBand message="Add an account first — a transaction has to belong to one." />
+            <Pressable
+              onPress={() => router.push('/(app)/connect')}
+              accessibilityRole="button"
+              style={styles.noticeAction}
+              hitSlop={8}
+            >
+              <Text style={styles.noticeActionLabel}>Add an account</Text>
+            </Pressable>
+          </>
         )}
 
         <Controller
@@ -357,6 +370,17 @@ function createStyles(theme: AppTheme) {
     },
     scroll: {
       paddingHorizontal: theme.spacing.lg,
+    },
+    noticeAction: {
+      alignSelf: 'flex-start',
+      paddingVertical: theme.spacing.md,
+    },
+    // Underlined, because it is the one way out of a screen that cannot
+    // otherwise be completed — it has to read as a link, not a caption.
+    noticeActionLabel: {
+      ...theme.typography.bodyStrong,
+      color: theme.colors.text.primary,
+      textDecorationLine: 'underline',
     },
     footnote: {
       ...theme.typography.caption,

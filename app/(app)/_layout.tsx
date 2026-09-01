@@ -75,6 +75,19 @@ export default function AppLayout() {
           tabBarStyle: { display: 'none' },
         }}
       />
+      {/* Adding accounts. Reached from wherever the absence of one is felt —
+          the dashboard's empty state, manual entry's "add an account first",
+          and Settings — rather than from a tab, because it is something you
+          do once and then stop thinking about. */}
+      <Tabs.Screen
+        name="connect"
+        options={{
+          href: null,
+          // The screen has its own ✕. A tab bar underneath would offer five
+          // competing exits from a task the user is in the middle of.
+          tabBarStyle: { display: 'none' },
+        }}
+      />
       {/* Development inspector for the notification listener. Hidden rather
           than removed in production builds so the route always resolves; the
           screen itself is only linked from Settings under __DEV__. */}

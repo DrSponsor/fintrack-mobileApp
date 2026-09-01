@@ -263,7 +263,12 @@ export default function DashboardScreen(): React.JSX.Element {
           </Reveal>
         ) : !hasMonth ? (
           <Reveal index={2}>
-            <EmptyMonth styles={styles} onManual={() => router.push('/(app)/transactions/new')} />
+            <EmptyMonth
+              styles={styles}
+              hasAccount={summary.accountCount > 0}
+              onManual={() => router.push('/(app)/transactions/new')}
+              onConnect={() => router.push('/(app)/connect')}
+            />
           </Reveal>
         ) : (
           <>
@@ -350,14 +355,43 @@ function SectionHead({ label, meta, action, onAction, styles }: SectionHeadProps
  * It answers what this is, why it is empty and what happens next — in three
  * short lines rather than a paragraph. The previous version explained the
  * mechanism at length, which is reassuring to write and tiring to read.
+ *
+ * ── Two different emptinesses ────────────────────────────────────────────
+ * "Nothing has happened yet" and "nothing CAN happen yet" look identical on
+ * screen and are completely different situations. With no account connected,
+ * telling someone the ledger fills itself is a promise the app cannot keep:
+ * no alert will ever arrive, and they would sit waiting on a screen that had
+ * assured them waiting was the right thing to do.
+ *
+ * So the copy branches on whether an account exists, and the action changes
+ * with it — connect first, or record by hand.
  */
 function EmptyMonth({
   styles,
+  hasAccount,
   onManual,
+  onConnect,
 }: {
   readonly styles: ReturnType<typeof createStyles>;
+  readonly hasAccount: boolean;
   readonly onManual: () => void;
+  readonly onConnect: () => void;
 }): React.JSX.Element {
+  if (!hasAccount) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyTitle}>Add a bank to begin.</Text>
+        <Text style={styles.emptyBody}>
+          Your bank already emails you when money moves. Connect that inbox and this ledger
+          fills itself — there is nothing to type.
+        </Text>
+        <Pressable onPress={onConnect} accessibilityRole="button" style={styles.emptyAction} hitSlop={8}>
+          <Text style={styles.emptyActionLabel}>Connect your bank</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>Nothing yet this month.</Text>

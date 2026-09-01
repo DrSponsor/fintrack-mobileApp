@@ -37,11 +37,22 @@ export const endpoints = {
   capture: {
     manual: `${V1}/capture/manual`,
     email: {
-      // Requires an Account with captureMethod: 'EMAIL' to already exist
-      // — body is { accountId, code } (Google OAuth authorization code).
+      // Where the consent flow begins. Returns { url, state }; the client keeps
+      // `state` and must refuse any redirect that returns a different one.
+      oauthUrl: `${V1}/capture/email/oauth/url`,
+      // The inbox belongs to the PERSON, so the body is just { code }. It used
+      // to require an accountId, which meant an account had to be typed in
+      // before its own inbox could be connected — the backwards ordering that
+      // discovery below exists to remove.
       oauthCallback: `${V1}/capture/email/oauth/callback`,
-      // body is { accountId }.
+      // No body. A caller can only ever disconnect their own inbox.
       oauthDisconnect: `${V1}/capture/email/oauth/disconnect`,
+      // Reads the connected inbox and reports the accounts found in it.
+      // Stores NOTHING — a shared or forwarded inbox can surface another
+      // person's name and account number, so only what the user confirms
+      // below is ever written.
+      discoveredAccounts: `${V1}/capture/email/discovered-accounts`,
+      confirmAccounts: `${V1}/capture/email/discovered-accounts/confirm`,
     },
   },
 
