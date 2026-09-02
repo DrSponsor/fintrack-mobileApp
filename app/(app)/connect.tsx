@@ -53,7 +53,8 @@ export default function ConnectScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const { phase, error, connect, discovered, discovering, confirm, confirming } = useGmailConnect();
+  const { phase, error, scanFailed, connect, discovered, discovering, confirm, confirming, rescan } =
+    useGmailConnect();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
 
   const toggle = useCallback((account: DiscoveredAccount) => {
@@ -128,7 +129,20 @@ export default function ConnectScreen(): React.JSX.Element {
           </Reveal>
         )}
 
-        {phase === 'done' && discovered.length === 0 && (
+        {phase === 'done' && discovered.length === 0 && scanFailed && (
+          <Reveal index={0}>
+            <Text style={styles.lede}>Could not finish reading that inbox.</Text>
+            <Text style={styles.note}>
+              Nothing is wrong with your accounts — the scan did not complete. It reads several
+              months of alerts, which can take a moment. Try again.
+            </Text>
+            <View style={styles.commit}>
+              <ActionButton label='Try again' loadingLabel='Reading…' onPress={rescan} />
+            </View>
+          </Reveal>
+        )}
+
+        {phase === 'done' && discovered.length === 0 && !scanFailed && (
           <Reveal index={0}>
             <Text style={styles.lede}>No bank accounts found in that inbox yet.</Text>
             <Text style={styles.note}>

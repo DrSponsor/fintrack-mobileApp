@@ -28,12 +28,14 @@
  * and the server already renders the return page, so the flow costs no new
  * native dependency. Worth revisiting when a rebuild is happening anyway.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import * as Linking from 'expo-linking';
+import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, api, readApiError, type ApiResponse } from '@/core/api/client';
 import { endpoints } from '@/core/api/endpoints';
 import { useUserScope } from '@/features/transactions/hooks/useUserScope';
+import { clearPendingState, rememberPendingState } from './oauthState';
 
 export interface DiscoveredAccount {
   readonly bankName: string;
@@ -47,12 +49,13 @@ export interface ConfirmedAccount extends DiscoveredAccount {
   readonly accountType: AccountType;
 }
 
+/** Long enough for forty sequential Gmail fetches and a model call, with room
+ *  for a slow network. A scan that is still running is not a scan that failed. */
+const SCAN_TIMEOUT_MS = 90_000;
+
 export const connectKeys = {
   discovered: (user: string) => ['connect', 'discovered', user] as const,
 };
-
-/** A deep link this app minted, as opposed to any other fintrack:// link. */
-const RETURN_PATH = 'oauth/google';
 
 function describe(err: unknown): string {
   const api = readApiError(err);
@@ -71,6 +74,9 @@ export type ConnectPhase =
 export interface UseGmailConnectResult {
   readonly phase: ConnectPhase;
   readonly error: string | null;
+  /** True when the scan itself failed, as opposed to finding nothing. The
+   *  screen must not offer ‘no accounts found’ as the explanation for it. */
+  readonly scanFailed: boolean;
   readonly connect: () => Promise<void>;
   /** Candidates found in the inbox. Empty until a scan completes. */
   readonly discovered: readonly DiscoveredAccount[];
@@ -90,67 +96,17 @@ export function useGmailConnect(): UseGmailConnectResult {
   // sources for one fact that could disagree.
   const [step, setStep] = useState<'idle' | 'authorising' | 'exchanging'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
 
-  // Held in a ref, not state: the deep-link listener closes over it, and a
-  // stale render would compare against a `state` from a previous attempt.
-  const expectedState = useRef<string | null>(null);
+  // Surfaced once, from the route, rather than held: a cancelled sign-in is
+  // the user changing their mind, not a fault to keep on screen.
 
-  const exchange = useCallback(
-    async (code: string) => {
-      setStep('exchanging');
-      try {
-        await api.post(endpoints.capture.email.oauthCallback, { code });
-        setConnected(true);
-        setError(null);
-      } catch (err) {
-        setStep('idle');
-        setError(describe(err));
-      }
-    },
-    [],
-  );
-
-  /** Reads a returning deep link, if it is one of ours. */
-  const handleUrl = useCallback(
-    (url: string) => {
-      const parsed = Linking.parse(url);
-      if (parsed.path !== RETURN_PATH) return;
-
-      const code = typeof parsed.queryParams?.code === 'string' ? parsed.queryParams.code : null;
-      const state = typeof parsed.queryParams?.state === 'string' ? parsed.queryParams.state : null;
-
-      if (code === null) {
-        setStep('idle');
-        // Google reports a refusal by omitting the code, so this is the
-        // ordinary "changed my mind" path rather than a fault.
-        setError('Connection cancelled.');
-        return;
-      }
-
-      if (expectedState.current === null || state !== expectedState.current) {
-        setStep('idle');
-        // Deliberately its own message. This is not a network problem — it
-        // means a code arrived that this app did not ask for.
-        setError('That sign-in did not match this request. Please start again.');
-        return;
-      }
-
-      expectedState.current = null;
-      void exchange(code);
-    },
-    [exchange],
-  );
-
-  useEffect(() => {
-    const subscription = Linking.addEventListener('url', (event) => handleUrl(event.url));
-    // The app can also be launched cold by the link, in which case the event
-    // fired before this listener existed.
-    void Linking.getInitialURL().then((url) => {
-      if (url !== null) handleUrl(url);
-    });
-    return () => subscription.remove();
-  }, [handleUrl]);
+  // How this screen learns the browser came back: the /oauth/google route
+  // performs the exchange and returns here with ?connected=1. That route is
+  // the owner because it is the one thing the incoming link is guaranteed to
+  // mount — including when Android killed this app while the browser was in
+  // front and the link is starting it cold.
+  const returned = useLocalSearchParams<{ connected?: string; cancelled?: string }>();
+  const connected = returned.connected === '1';
 
   const connect = useCallback(async () => {
     setError(null);
@@ -159,11 +115,11 @@ export function useGmailConnect(): UseGmailConnectResult {
       const { consentUrl, state } = await api.get<{ consentUrl: string; state: string }>(
         endpoints.capture.email.oauthUrl,
       );
-      expectedState.current = state;
+      rememberPendingState(state);
       await Linking.openURL(consentUrl);
     } catch (err) {
       setStep('idle');
-      expectedState.current = null;
+      clearPendingState();
       setError(describe(err));
     }
   }, []);
@@ -174,8 +130,18 @@ export function useGmailConnect(): UseGmailConnectResult {
   const discovery = useQuery({
     queryKey: connectKeys.discovered(user),
     queryFn: async () => {
+      // Its own timeout. The client default is 15s, which is right for an
+      // ordinary call and far too short for this one: the scan fetches forty
+      // messages from Gmail in sequence — deliberately, because a burst gets
+      // rate-limited — and then calls a model. It takes about twenty seconds.
+      //
+      // The default made every attempt abort at fifteen while the server ran to
+      // completion and found the accounts. The app then reported ‘no bank
+      // accounts found’, which is why this took a long time to see: the server
+      // logs said success and the screen said empty.
       const response = await apiClient.get<ApiResponse<readonly DiscoveredAccount[]>>(
         endpoints.capture.email.discoveredAccounts,
+        { timeout: SCAN_TIMEOUT_MS },
       );
       return response.data.data;
     },
@@ -229,9 +195,16 @@ export function useGmailConnect(): UseGmailConnectResult {
     [confirmation],
   );
 
+  // A scan that FAILED is not a scan that found nothing, and the screen has
+  // to be able to tell them apart. Conflating the two is what turned a
+  // fifteen-second timeout into ‘no bank accounts found in that inbox’ — a
+  // confident, wrong answer about somebody’s own mailbox.
+  const scanError = discovery.isError ? describe(discovery.error) : null;
+
   return {
     phase,
-    error,
+    error: error ?? scanError,
+    scanFailed: discovery.isError,
     connect,
     discovered: discovery.data ?? [],
     discovering: discovery.isFetching,
