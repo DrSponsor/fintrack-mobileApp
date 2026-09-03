@@ -49,6 +49,8 @@ export interface UseSettingsResult {
   readonly accountsLoading: boolean;
   readonly inbox: InboxConnection | null;
   readonly inboxLoading: boolean;
+  readonly removeAccount: (id: string) => Promise<void>;
+  readonly removing: boolean;
   readonly disconnect: () => Promise<void>;
   readonly disconnecting: boolean;
   readonly error: string | null;
@@ -71,6 +73,24 @@ export function useSettings(): UseSettingsResult {
     staleTime: 30_000,
   });
 
+  const removal = useMutation({
+    mutationFn: (id: string) => api.delete<null>(endpoints.accounts.delete(id)),
+    onSuccess: () => {
+      // The ledger reads accounts, and removing one takes its transactions
+      // with it — so everything downstream is stale, not just this list.
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.accounts(user) });
+      void queryClient.invalidateQueries({ queryKey: ['ledger'] });
+      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    },
+  });
+
+  const removeAccount = useCallback(
+    async (id: string) => {
+      await removal.mutateAsync(id);
+    },
+    [removal],
+  );
+
   const disconnection = useMutation({
     mutationFn: () => api.post<null>(endpoints.capture.email.oauthDisconnect, {}),
     onSuccess: () => {
@@ -92,13 +112,15 @@ export function useSettings(): UseSettingsResult {
     void inbox.refetch();
   }, [accounts, inbox]);
 
-  const failure = accounts.error ?? inbox.error ?? disconnection.error;
+  const failure = accounts.error ?? inbox.error ?? disconnection.error ?? removal.error;
 
   return {
     accounts: accounts.data ?? [],
     accountsLoading: accounts.isLoading,
     inbox: inbox.data ?? null,
     inboxLoading: inbox.isLoading,
+    removeAccount,
+    removing: removal.isPending,
     disconnect,
     disconnecting: disconnection.isPending,
     error: failure ? (readApiError(failure)?.message ?? 'Could not reach the server.') : null,

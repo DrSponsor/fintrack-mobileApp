@@ -64,6 +64,9 @@ export const endpoints = {
   accounts: {
     list: `${V1}/accounts`,
     detail: (id: string) => `${V1}/accounts/${id}`,
+    // Removing an account CASCADES to its transactions. The confirmation on
+    // the client has to say so — it is not recoverable and it is not obvious.
+    delete: (id: string) => `${V1}/accounts/${id}`,
   },
 
   // ── Categories ───────────────────────────────────────────

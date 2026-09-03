@@ -20,9 +20,16 @@
  * an error and neither should look like one.
  *
  * ── Nothing claims more than it knows ────────────────────────────────────
- * An account says how the app came to believe it is yours — confirmed from a
- * bank's own alert, or simply typed. That distinction is the honest answer to
- * "is this verified", and it is stated rather than implied by a tick.
+ * An account shows the holder the bank addresses, falling back to how the app
+ * came to believe it is yours — confirmed from an alert, or simply typed. A
+ * tick would claim a verification nobody performed, and the holder is the
+ * fact that actually settles it: a scan of a shared or forwarded inbox can
+ * offer somebody else's account, and a name is how a person spots that.
+ *
+ * ── Removing an account is destructive and says so ───────────────────────
+ * It cascades to every transaction on that account. The confirmation states
+ * that outright, because a dialogue that only asks "are you sure" tells the
+ * user nothing they did not already know when they pressed.
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -38,6 +45,7 @@ import { useAuthStore } from '@/core/store/auth.store';
 import { useUIStore } from '@/core/store/ui.store';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useSettings, type SettingsAccount } from '@/features/settings/useSettings';
+import { formatAccountMask } from '@/shared/format/accountMask';
 
 const JOINED_FORMAT: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
 
@@ -58,7 +66,9 @@ function provenance(account: SettingsAccount): string {
  * on exactly the accounts discovery creates.
  */
 function identify(account: SettingsAccount): string {
-  if (account.accountMask !== null && account.accountMask.length > 0) return account.accountMask;
+  if (account.accountMask !== null && account.accountMask.length > 0) {
+    return formatAccountMask(account.accountMask);
+  }
   const last4 = account.accountLast4;
   return last4 !== null && last4.length > 0 ? `···· ${last4}` : '';
 }
@@ -75,8 +85,16 @@ export default function SettingsScreen(): React.JSX.Element {
   const toggleBalance = useUIStore((state) => state.toggleBalanceVisibility);
   const { logout } = useAuth();
 
-  const { accounts, accountsLoading, inbox, disconnect, disconnecting, error, refresh } =
-    useSettings();
+  const {
+    accounts,
+    accountsLoading,
+    inbox,
+    removeAccount,
+    disconnect,
+    disconnecting,
+    error,
+    refresh,
+  } = useSettings();
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -92,6 +110,41 @@ export default function SettingsScreen(): React.JSX.Element {
       router.push(path as never);
     },
     [router],
+  );
+
+  // The consequence is stated because it is neither obvious nor recoverable:
+  // removing an account cascades to every transaction recorded on it. A
+  // confirmation that only asks ‘are you sure’ tells the user nothing they did
+  // not already know when they pressed.
+  const askRemove = useCallback(
+    (account: SettingsAccount) => {
+      const held =
+        account.holderName !== null
+          ? `\n\nThis account is in the name of ${account.holderName}.`
+          : '';
+
+      Alert.alert(
+        account.bankName,
+        `${identify(account)}
+${provenance(account)}${held}
+
+Removing it also removes every transaction recorded on it, and that cannot be undone.`,
+        [
+          { text: 'Keep it', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: () => {
+              Haptics.selectionAsync().catch(() => {});
+              void removeAccount(account.id).catch(() => {
+                // Surfaced by the hook’s error, which the band above renders.
+              });
+            },
+          },
+        ],
+      );
+    },
+    [removeAccount],
   );
 
   // Confirmed, because it stops new transactions arriving and the person
@@ -165,18 +218,31 @@ export default function SettingsScreen(): React.JSX.Element {
 
         {accounts.map((account, index) => (
           <Reveal key={account.id} index={index + 2}>
-            <View style={styles.row}>
+            <Pressable
+              style={styles.row}
+              onPress={() => askRemove(account)}
+              accessibilityRole="button"
+              accessibilityLabel={`${account.bankName}, ${identify(account)}. ${provenance(account)}. Opens options.`}
+            >
               <View style={styles.rowBody}>
                 <Text style={styles.rowTitle} numberOfLines={1}>
                   {account.bankName}
                 </Text>
-                <Text style={styles.rowNote}>{provenance(account)}</Text>
+                <Text style={styles.rowNote}>
+                  {account.holderName ?? provenance(account)}
+                </Text>
               </View>
               <Text style={styles.rowValue}>{identify(account)}</Text>
-            </View>
+            </Pressable>
             <View style={styles.rule} />
           </Reveal>
         ))}
+
+        {accounts.length > 0 && (
+          <Reveal index={accounts.length + 2}>
+            <Text style={styles.hint}>Tap an account to see it or remove it.</Text>
+          </Reveal>
+        )}
 
         {!accountsLoading && accounts.length === 0 && (
           <Reveal index={2}>
@@ -184,7 +250,7 @@ export default function SettingsScreen(): React.JSX.Element {
           </Reveal>
         )}
 
-        <Reveal index={accounts.length + 2}>
+        <Reveal index={accounts.length + 3}>
           <Pressable style={styles.action} onPress={() => go('/(app)/connect')}>
             <Text style={styles.actionLabel}>Add an account</Text>
           </Pressable>
@@ -247,7 +313,7 @@ export default function SettingsScreen(): React.JSX.Element {
             <View style={styles.rowBody}>
               <Text style={styles.rowTitle}>Hide my balance</Text>
               <Text style={styles.rowNote}>
-                Covers the figure on the dashboard until you tap it.
+                Covered until you tap to reveal it.
               </Text>
             </View>
             <Text style={[styles.rowValue, hidden && styles.rowValueOn]}>
@@ -394,6 +460,11 @@ function createStyles(theme: AppTheme) {
       backgroundColor: theme.colors.rule.strong,
     },
 
+    hint: {
+      ...theme.typography.caption,
+      color: theme.colors.text.disabled,
+      paddingTop: theme.spacing.md,
+    },
     empty: {
       ...theme.typography.caption,
       color: theme.colors.text.tertiary,

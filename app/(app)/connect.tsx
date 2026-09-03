@@ -36,6 +36,7 @@ import { ActionButton, NoticeBand } from '@/design-system/components';
 import { Reveal } from '@/design-system/motion/Reveal';
 import { ScanningLedger } from '@/features/onboarding/connect/ScanningLedger';
 import { SNAP, useReducedMotion } from '@/design-system/motion/springs';
+import { formatAccountMask } from '@/shared/format/accountMask';
 import {
   useGmailConnect,
   type AccountType,
@@ -102,7 +103,7 @@ function DiscoveredRow({
           <Text style={[styles.bank, picked && styles.bankOn]} numberOfLines={1}>
             {account.bankName}
           </Text>
-          <Text style={styles.mask}>{account.accountMask}</Text>
+          <Text style={styles.mask}>{formatAccountMask(account.accountMask)}</Text>
           {account.holderName !== null && (
             <Text style={styles.holder} numberOfLines={1}>
               {account.holderName}
