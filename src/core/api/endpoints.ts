@@ -47,6 +47,10 @@ export const endpoints = {
       oauthCallback: `${V1}/capture/email/oauth/callback`,
       // No body. A caller can only ever disconnect their own inbox.
       oauthDisconnect: `${V1}/capture/email/oauth/disconnect`,
+      // Whether an inbox is connected, and which one. Cheap on purpose: the
+      // only other signal was the discovery scan, which fetches forty messages
+      // and calls a model to answer a yes/no question.
+      connection: `${V1}/capture/email/connection`,
       // Reads the connected inbox and reports the accounts found in it.
       // Stores NOTHING — a shared or forwarded inbox can surface another
       // person's name and account number, so only what the user confirms
