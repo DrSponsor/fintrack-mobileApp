@@ -24,8 +24,9 @@
  * Pre-ticking every row would make the safe path require noticing, and the
  * careless path the default. Each row is an explicit act.
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -33,6 +34,8 @@ import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
 import { ActionButton, NoticeBand } from '@/design-system/components';
 import { Reveal } from '@/design-system/motion/Reveal';
+import { ScanningLedger } from '@/features/onboarding/connect/ScanningLedger';
+import { SNAP, useReducedMotion } from '@/design-system/motion/springs';
 import {
   useGmailConnect,
   type AccountType,
@@ -45,6 +48,71 @@ const DEFAULT_TYPE: AccountType = 'SAVINGS';
 
 function keyOf(account: DiscoveredAccount): string {
   return `${account.bankName}::${account.accountMask}`;
+}
+
+/**
+ * One account the inbox offered.
+ *
+ * Its own component so the tick can animate: a per-row shared value cannot
+ * live in a map body, and the mark growing into place is what makes ticking
+ * feel like a decision rather than a form field changing colour. Same gesture
+ * as the marker on a focused field.
+ */
+function DiscoveredRow({
+  account,
+  picked,
+  onToggle,
+  styles,
+  theme,
+}: {
+  readonly account: DiscoveredAccount;
+  readonly picked: boolean;
+  readonly onToggle: () => void;
+  readonly styles: ReturnType<typeof createStyles>;
+  readonly theme: AppTheme;
+}): React.JSX.Element {
+  const reducedMotion = useReducedMotion();
+  const on = useSharedValue(picked ? 1 : 0);
+
+  useEffect(() => {
+    const to = picked ? 1 : 0;
+    on.value = reducedMotion ? to : withSpring(to, SNAP);
+  }, [picked, on, reducedMotion]);
+
+  // Height rather than opacity: the mark is measured out from the middle, so
+  // it reads as being drawn rather than faded in.
+  const tickStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleY: 0.25 + on.value * 0.75 }],
+    backgroundColor: on.value > 0.5 ? theme.colors.action.base : theme.colors.rule.strong,
+  }));
+
+  return (
+    <>
+      <Pressable
+        onPress={onToggle}
+        style={styles.row}
+        accessibilityRole='checkbox'
+        accessibilityState={{ checked: picked }}
+        accessibilityLabel={`${account.bankName}, account ending ${account.accountMask}`}
+      >
+        {/* Same 2px tick that marks a live field and a chosen picker row, so
+            ‘this one’ is stated identically everywhere in the app. */}
+        <Animated.View style={[styles.tick, tickStyle]} />
+        <View style={styles.rowBody}>
+          <Text style={[styles.bank, picked && styles.bankOn]} numberOfLines={1}>
+            {account.bankName}
+          </Text>
+          <Text style={styles.mask}>{account.accountMask}</Text>
+          {account.holderName !== null && (
+            <Text style={styles.holder} numberOfLines={1}>
+              {account.holderName}
+            </Text>
+          )}
+        </View>
+      </Pressable>
+      <View style={styles.rule} />
+    </>
+  );
 }
 
 export default function ConnectScreen(): React.JSX.Element {
@@ -111,21 +179,34 @@ export default function ConnectScreen(): React.JSX.Element {
 
         {phase !== 'done' && (
           <Reveal index={0}>
+            {/* The pitch, shown rather than described. Same figure that does
+                the waiting below, at half the tempo — so when the scan starts
+                the screen does not cut to something new, it speeds up. */}
+            <View style={styles.figure}>
+              <ScanningLedger mode={phase === 'scanning' ? 'reading' : 'resting'} />
+            </View>
+
             <Text style={styles.lede}>
-              Your bank already emails you when money moves. Connect that inbox and this app
-              reads those alerts — nothing else.
+              {phase === 'scanning'
+                ? 'Reading your alerts.'
+                : 'Your bank already emails you when money moves.'}
             </Text>
             <Text style={styles.note}>
-              It never sees your banking password and cannot move your money.
+              {phase === 'scanning'
+                ? 'Several months of mail, so this takes about half a minute. Nothing is saved until you choose.'
+                : 'Connect that inbox and this app reads those alerts — nothing else. It never sees your banking password and cannot move your money.'}
             </Text>
-            <View style={styles.commit}>
-              <ActionButton
-                label={busy ? 'Waiting for Google…' : 'Connect Gmail'}
-                loading={busy}
-                loadingLabel={phase === 'scanning' ? 'Reading your alerts…' : 'Waiting for Google…'}
-                onPress={() => void connect()}
-              />
-            </View>
+
+            {phase !== 'scanning' && (
+              <View style={styles.commit}>
+                <ActionButton
+                  label={busy ? 'Waiting for Google…' : 'Connect Gmail'}
+                  loading={busy}
+                  loadingLabel='Waiting for Google…'
+                  onPress={() => void connect()}
+                />
+              </View>
+            )}
           </Reveal>
         )}
 
@@ -166,38 +247,17 @@ export default function ConnectScreen(): React.JSX.Element {
             </Reveal>
 
             <View style={styles.list}>
-              {discovered.map((account, index) => {
-                const key = keyOf(account);
-                const on = picked.has(key);
-                return (
-                  <Reveal key={key} index={index + 1}>
-                    <Pressable
-                      onPress={() => toggle(account)}
-                      style={styles.row}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: on }}
-                      accessibilityLabel={`${account.bankName}, account ending ${account.accountMask}`}
-                    >
-                      {/* Same 2px tick that marks a live field and a chosen
-                          picker row, so "this one" is stated identically
-                          everywhere in the app. */}
-                      <View style={[styles.tick, on && styles.tickOn]} />
-                      <View style={styles.rowBody}>
-                        <Text style={[styles.bank, on && styles.bankOn]} numberOfLines={1}>
-                          {account.bankName}
-                        </Text>
-                        <Text style={styles.mask}>{account.accountMask}</Text>
-                        {account.holderName !== null && (
-                          <Text style={styles.holder} numberOfLines={1}>
-                            {account.holderName}
-                          </Text>
-                        )}
-                      </View>
-                    </Pressable>
-                    <View style={styles.rule} />
-                  </Reveal>
-                );
-              })}
+              {discovered.map((account, index) => (
+                <Reveal key={keyOf(account)} index={index + 1}>
+                  <DiscoveredRow
+                    account={account}
+                    picked={picked.has(keyOf(account))}
+                    onToggle={() => toggle(account)}
+                    styles={styles}
+                    theme={theme}
+                  />
+                </Reveal>
+              ))}
             </View>
 
             <Text style={styles.footnote}>
@@ -258,6 +318,9 @@ function createStyles(theme: AppTheme) {
     },
     notice: {
       marginBottom: theme.spacing.lg,
+    },
+    figure: {
+      marginBottom: theme.spacing.xl,
     },
     lede: {
       ...theme.typography.heading,
