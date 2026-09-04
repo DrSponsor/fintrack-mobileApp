@@ -15,7 +15,9 @@
  * usually got wrong.
  *
  * Typing is faster than either for someone who knows the answer, which is the
- * only person who opens this. Four digits and a colon beats spinning a drum.
+ * only person who opens this — four digits beats spinning a drum. Separators
+ * are inserted as you type, so the numeric keypad is enough and no key that is
+ * not on it is ever needed. See maskTime and maskDate.
  *
  * ── What makes typed input safe here ─────────────────────────────────────
  * The same device the amount field uses: the input shows what was typed, and
@@ -57,6 +59,36 @@ const FULL: Intl.DateTimeFormatOptions = {
   month: 'long',
   year: 'numeric',
 };
+
+/**
+ * Separators appear as you type, so only digits are ever pressed.
+ *
+ * The numeric keypad has no colon and no slash — which made the first version
+ * of this sheet literally impossible to fill in. Switching to a full keyboard
+ * would fix that and make every entry slower, on a field where every character
+ * is a digit.
+ *
+ * Masking a controlled input is normally a caret trap: inserting a character
+ * mid-string moves everything after it, and editing anywhere but the end lands
+ * the cursor in the wrong place. It is safe HERE, and only here, because these
+ * fields are four and eight digits long and are typed straight through. The
+ * amount field, which is none of those things, still refuses to reformat and
+ * shows a confirmation line instead.
+ *
+ * Backspacing works without a special case: the digits are re-derived from
+ * whatever remains, so deleting through a separator simply removes it.
+ */
+export function maskTime(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  return digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+export function maskDate(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
 
 /**
  * Reads "DD/MM/YYYY" and "HH:MM" into a moment, or explains why it cannot.
@@ -135,7 +167,7 @@ export function WhenSheet({ visible, value, onCancel, onConfirm }: WhenSheetProp
               label="Date"
               voice="identifier"
               value={dateText}
-              onChangeText={setDateText}
+              onChangeText={(next) => setDateText(maskDate(next))}
               placeholder="22/08/2026"
               keyboardType="number-pad"
               maxLength={10}
@@ -146,7 +178,7 @@ export function WhenSheet({ visible, value, onCancel, onConfirm }: WhenSheetProp
               label="Time · 24-hour"
               voice="identifier"
               value={timeText}
-              onChangeText={setTimeText}
+              onChangeText={(next) => setTimeText(maskTime(next))}
               placeholder="14:07"
               keyboardType="number-pad"
               maxLength={5}

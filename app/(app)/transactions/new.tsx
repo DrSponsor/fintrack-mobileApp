@@ -256,7 +256,7 @@ export default function NewTransactionScreen(): React.JSX.Element {
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
-              placeholder={direction === 'DEBIT' ? 'Shoprite, fuel, rent…' : 'Salary, a friend…'}
+              placeholder={direction === 'DEBIT' ? 'Shoprite, fuel, MTN, rent…' : 'Salary, a friend…'}
               autoCapitalize="words"
               autoCorrect={false}
               returnKeyType="done"

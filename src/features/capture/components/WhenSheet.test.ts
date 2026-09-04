@@ -1,4 +1,4 @@
-import { readWhen } from './WhenSheet';
+import { maskDate, maskTime, readWhen } from './WhenSheet';
 
 const NOW = new Date(2026, 8, 3, 18, 0, 0);
 
@@ -70,5 +70,52 @@ describe('readWhen', () => {
 
   it('refuses a time with no minutes', () => {
     expect('problem' in readWhen('22/08/2026', '14', NOW)).toBe(true);
+  });
+});
+
+describe('typing with a numeric keypad', () => {
+  // The keypad has no colon and no slash, so the first version of this sheet
+  // could not be filled in at all. Only digits are ever pressed now.
+
+  it('builds the time as digits arrive', () => {
+    expect(maskTime('1')).toBe('1');
+    expect(maskTime('14')).toBe('14');
+    expect(maskTime('140')).toBe('14:0');
+    expect(maskTime('1407')).toBe('14:07');
+  });
+
+  it('builds the date as digits arrive', () => {
+    expect(maskDate('2')).toBe('2');
+    expect(maskDate('22')).toBe('22');
+    expect(maskDate('2208')).toBe('22/08');
+    expect(maskDate('22082026')).toBe('22/08/2026');
+  });
+
+  it('keeps working once a separator is already there', () => {
+    // Every keystroke re-derives the whole value, so the separator this
+    // function inserted last time is stripped and re-inserted rather than
+    // being counted as input.
+    expect(maskTime('14:07')).toBe('14:07');
+    expect(maskDate('22/08/2026')).toBe('22/08/2026');
+  });
+
+  it('deletes through a separator without a special case', () => {
+    // Backspacing '14:0' leaves '14:' — the digits are '14', so the colon goes
+    // with it rather than stranding the caret behind a character that cannot
+    // be removed.
+    expect(maskTime('14:')).toBe('14');
+    expect(maskDate('22/')).toBe('22');
+  });
+
+  it('refuses more digits than the field can hold', () => {
+    expect(maskTime('140799')).toBe('14:07');
+    expect(maskDate('2208202699')).toBe('22/08/2026');
+  });
+
+  it('produces exactly what the parser accepts', () => {
+    // The two halves have to agree, or a field could be filled in completely
+    // and still be reported as badly formed.
+    const read = readWhen(maskDate('22082026'), maskTime('1407'), new Date(2026, 8, 3));
+    expect('at' in read).toBe(true);
   });
 });

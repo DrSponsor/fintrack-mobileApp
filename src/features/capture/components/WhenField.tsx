@@ -144,7 +144,7 @@ export function WhenField({ value, onChange, error, index }: WhenFieldProps): Re
           <Text style={styles.resolved} accessibilityLiveRegion="polite">
             {describeWhen(value, new Date(now))}
           </Text>
-          <Text style={styles.editHint}>Exact</Text>
+          <Text style={styles.editHint}></Text>
         </Pressable>
         <View style={styles.stepper}>
           <Pressable
