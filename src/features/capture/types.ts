@@ -91,6 +91,8 @@ export interface AccountSummary {
    *  figure of their own. Separate from the balance because one is the bank's
    *  claim and the other is this app's, and the screen has to say which. */
   readonly adjustmentKobo: string;
+  /** Deleting the account removes these too, so the warning can name them. */
+  readonly transactionCount: number;
 }
 
 export interface CategorySummary {

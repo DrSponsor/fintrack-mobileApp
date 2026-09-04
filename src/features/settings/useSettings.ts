@@ -1,59 +1,49 @@
 /**
- * Everything the settings screen needs, and nothing it does not.
+ * Everything the Settings screen reads and changes.
  *
- * ── Four questions, four sources ─────────────────────────────────────────
- * A settings screen is where somebody goes to check the app is real and to
- * undo something. Both need the same thing: the truth, from wherever it
- * actually lives. So each fact here comes from its owner rather than from a
- * local copy — which is the mistake that had the connect screen offering to
- * re-authorise an inbox that was already connected.
- *
- *   the accounts    the server
- *   the inbox       the server
- *   who you are     the auth store, which already holds the session
- *   hide balance    MMKV, because it is a per-device preference
+ * ── Why one hook rather than four ────────────────────────────────────────
+ * Accounts, the connected inbox and the balance preference look independent
+ * and are not: removing the last account changes what the inbox section
+ * should offer, and disconnecting the inbox changes what the accounts section
+ * can say about where its rows came from. Splitting them would mean four
+ * screens' worth of invalidation rules living in the component.
  */
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, readApiError } from '@/core/api/client';
 import { endpoints } from '@/core/api/endpoints';
+import type { AccountSummary } from '@/features/capture/types';
 import { useUserScope } from '@/features/transactions/hooks/useUserScope';
 
-export interface SettingsAccount {
-  readonly id: string;
-  readonly bankName: string;
-  readonly accountLast4: string | null;
-  readonly accountMask: string | null;
-  readonly accountType: string;
-  /** Who the bank addresses. Null when no alert stated one. */
-  readonly holderName: string | null;
-  /** How the app came to believe this account is the user's. Neither value
-   *  means verified — a forwarded alert defeats both — which is why it is a
-   *  value to be stated rather than a boolean to be ticked. */
-  readonly verificationSource: 'SELF_DECLARED' | 'EMAIL_DISCOVERY';
-}
-
-export interface InboxConnection {
+export interface GmailConnection {
   readonly connected: boolean;
+  /** The mailbox Google actually authorised, which need not be the address
+   *  the user signed up with. Shown because it is the one thing that makes
+   *  disconnecting a decision rather than a guess. */
   readonly emailAddress: string | null;
   readonly connectedAt: string | null;
 }
 
 export const settingsKeys = {
-  accounts: (user: string) => ['settings', 'accounts', user] as const,
-  inbox: (user: string) => ['settings', 'inbox', user] as const,
+  accounts: (user: string) => ['ledger', user, 'accounts'] as const,
+  connection: (user: string) => ['settings', user, 'connection'] as const,
 };
 
+function describe(err: unknown): string {
+  const api = readApiError(err);
+  if (api === null) return 'Could not reach the server. Check your connection and try again.';
+  return api.message;
+}
+
 export interface UseSettingsResult {
-  readonly accounts: readonly SettingsAccount[];
-  readonly accountsLoading: boolean;
-  readonly inbox: InboxConnection | null;
-  readonly inboxLoading: boolean;
+  readonly accounts: readonly AccountSummary[];
+  readonly connection: GmailConnection | null;
+  readonly loading: boolean;
+  readonly error: string | null;
   readonly removeAccount: (id: string) => Promise<void>;
   readonly removing: boolean;
   readonly disconnect: () => Promise<void>;
   readonly disconnecting: boolean;
-  readonly error: string | null;
   readonly refresh: () => void;
 }
 
@@ -61,26 +51,34 @@ export function useSettings(): UseSettingsResult {
   const user = useUserScope();
   const queryClient = useQueryClient();
 
+  // Shares its key with the dashboard's account query on purpose: removing an
+  // account here has to change the balance there, and one key means that
+  // happens by invalidation rather than by remembering to.
   const accounts = useQuery({
     queryKey: settingsKeys.accounts(user),
-    queryFn: () => api.get<readonly SettingsAccount[]>(endpoints.accounts.list),
-    staleTime: 30_000,
+    queryFn: () => api.get<readonly AccountSummary[]>(endpoints.accounts.list),
   });
 
-  const inbox = useQuery({
-    queryKey: settingsKeys.inbox(user),
-    queryFn: () => api.get<InboxConnection>(endpoints.capture.email.connection),
-    staleTime: 30_000,
+  const connection = useQuery({
+    queryKey: settingsKeys.connection(user),
+    queryFn: () => api.get<GmailConnection>(endpoints.capture.email.connection),
   });
 
   const removal = useMutation({
-    mutationFn: (id: string) => api.delete<null>(endpoints.accounts.delete(id)),
+    mutationFn: (id: string) => api.delete(endpoints.accounts.delete(id)),
     onSuccess: () => {
-      // The ledger reads accounts, and removing one takes its transactions
-      // with it — so everything downstream is stale, not just this list.
-      void queryClient.invalidateQueries({ queryKey: settingsKeys.accounts(user) });
+      // Every screen that counts money reads accounts or transactions, and
+      // removing an account cascades to its transactions — so both go.
       void queryClient.invalidateQueries({ queryKey: ['ledger'] });
-      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    },
+  });
+
+  const disconnection = useMutation({
+    mutationFn: () => api.post(endpoints.capture.email.oauthDisconnect, {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['settings'] });
+      // The discovery scan's result is about an inbox that is now gone.
+      void queryClient.invalidateQueries({ queryKey: ['connect'] });
     },
   });
 
@@ -91,39 +89,28 @@ export function useSettings(): UseSettingsResult {
     [removal],
   );
 
-  const disconnection = useMutation({
-    mutationFn: () => api.post<null>(endpoints.capture.email.oauthDisconnect, {}),
-    onSuccess: () => {
-      // The accounts stay. Disconnecting an inbox stops new alerts arriving;
-      // it does not unsay the transactions already recorded, and deleting
-      // somebody's ledger because they revoked an email permission would be a
-      // surprise of the worst kind.
-      void queryClient.invalidateQueries({ queryKey: settingsKeys.inbox(user) });
-      void queryClient.invalidateQueries({ queryKey: ['connect'] });
-    },
-  });
-
   const disconnect = useCallback(async () => {
     await disconnection.mutateAsync();
   }, [disconnection]);
 
+  const refetchAccounts = accounts.refetch;
+  const refetchConnection = connection.refetch;
   const refresh = useCallback(() => {
-    void accounts.refetch();
-    void inbox.refetch();
-  }, [accounts, inbox]);
+    void refetchAccounts();
+    void refetchConnection();
+  }, [refetchAccounts, refetchConnection]);
 
-  const failure = accounts.error ?? inbox.error ?? disconnection.error ?? removal.error;
+  const failure = accounts.error ?? connection.error ?? removal.error ?? disconnection.error;
 
   return {
     accounts: accounts.data ?? [],
-    accountsLoading: accounts.isLoading,
-    inbox: inbox.data ?? null,
-    inboxLoading: inbox.isLoading,
+    connection: connection.data ?? null,
+    loading: accounts.isLoading || connection.isLoading,
+    error: failure ? describe(failure) : null,
     removeAccount,
     removing: removal.isPending,
     disconnect,
     disconnecting: disconnection.isPending,
-    error: failure ? (readApiError(failure)?.message ?? 'Could not reach the server.') : null,
     refresh,
   };
 }
