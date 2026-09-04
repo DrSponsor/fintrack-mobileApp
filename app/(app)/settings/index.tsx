@@ -22,14 +22,14 @@
  * whatever the screen happens to have loaded.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
-import { NoticeBand } from '@/design-system/components';
+import { ConfirmSheet, NoticeBand } from '@/design-system/components';
 import { Reveal } from '@/design-system/motion/Reveal';
 import { useUIStore } from '@/core/store/ui.store';
 import { useAuthStore } from '@/core/store/auth.store';
@@ -72,59 +72,31 @@ export default function SettingsScreen(): React.JSX.Element {
 
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const confirmRemove = useCallback(
-    (account: AccountSummary) => {
-      Haptics.selectionAsync().catch(() => {});
-      const entries = account.transactionCount;
-      const also =
-        entries === 0
-          ? 'It holds no transactions.'
-          : entries === 1
-            ? 'This also removes the 1 transaction recorded for it.'
-            : `This also removes the ${entries} transactions recorded for it.`;
+  // Which question is open, if any. One at a time: two confirmations stacked
+  // on screen is never a state anybody asked for, and a single value makes
+  // that impossible rather than merely unlikely.
+  const [asking, setAsking] = useState<
+    | { readonly kind: 'remove'; readonly account: AccountSummary }
+    | { readonly kind: 'disconnect' }
+    | { readonly kind: 'signout' }
+    | null
+  >(null);
 
-      Alert.alert(
-        `Remove ${account.bankName}?`,
-        `${also} Nothing is kept, and it cannot be undone.`,
-        [
-          { text: 'Keep it', style: 'cancel' },
-          {
-            text: 'Remove',
-            style: 'destructive',
-            onPress: () => {
-              setBusyId(account.id);
-              void removeAccount(account.id).finally(() => setBusyId(null));
-            },
-          },
-        ],
-      );
-    },
-    [removeAccount],
-  );
+  const dismiss = useCallback(() => setAsking(null), []);
+
+  const confirmRemove = useCallback((account: AccountSummary) => {
+    Haptics.selectionAsync().catch(() => {});
+    setAsking({ kind: 'remove', account });
+  }, []);
 
   const confirmDisconnect = useCallback(() => {
     Haptics.selectionAsync().catch(() => {});
-    Alert.alert(
-      'Disconnect this inbox?',
-      'The app stops reading your bank alerts. Your accounts and everything already recorded stay exactly as they are.',
-      [
-        { text: 'Stay connected', style: 'cancel' },
-        { text: 'Disconnect', style: 'destructive', onPress: () => void disconnect() },
-      ],
-    );
-  }, [disconnect]);
+    setAsking({ kind: 'disconnect' });
+  }, []);
 
   const handleSignOut = useCallback(() => {
-    Alert.alert('Sign out?', 'You can sign back in at any time.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out',
-        onPress: () => {
-          void logout().then(() => router.replace('/(auth)/welcome'));
-        },
-      },
-    ]);
-  }, [logout, router]);
+    setAsking({ kind: 'signout' });
+  }, []);
 
   return (
     <View style={styles.page}>
@@ -324,6 +296,64 @@ export default function SettingsScreen(): React.JSX.Element {
           </Link>
         )}
       </ScrollView>
+
+      {/* One sheet per question, in the app’s own voice. These were three
+          Alert.alert() calls — an OS dialog that cannot be styled, appearing
+          at exactly the moments a person is deciding whether to trust what
+          they are about to do. */}
+      <ConfirmSheet
+        visible={asking?.kind === 'remove'}
+        title={asking?.kind === 'remove' ? `Remove ${asking.account.bankName}?` : ''}
+        body={
+          asking?.kind === 'remove'
+            ? `${
+                asking.account.transactionCount === 0
+                  ? 'It holds no transactions.'
+                  : asking.account.transactionCount === 1
+                    ? 'This also removes the 1 transaction recorded for it.'
+                    : `This also removes the ${asking.account.transactionCount} transactions recorded for it.`
+              } Nothing is kept, and it cannot be undone.`
+            : ''
+        }
+        cancelLabel='Keep it'
+        confirmLabel='Remove'
+        destructive
+        onCancel={dismiss}
+        onConfirm={() => {
+          if (asking?.kind !== 'remove') return;
+          const id = asking.account.id;
+          dismiss();
+          setBusyId(id);
+          void removeAccount(id).finally(() => setBusyId(null));
+        }}
+      />
+
+      <ConfirmSheet
+        visible={asking?.kind === 'disconnect'}
+        title='Disconnect this inbox?'
+        body='The app stops reading your bank alerts. Your accounts and everything already recorded stay exactly as they are.'
+        cancelLabel='Stay connected'
+        confirmLabel='Disconnect'
+        destructive
+        onCancel={dismiss}
+        onConfirm={() => {
+          dismiss();
+          void disconnect();
+        }}
+      />
+
+      <ConfirmSheet
+        visible={asking?.kind === 'signout'}
+        title='Sign out?'
+        body='You can sign back in at any time. Nothing recorded is lost.'
+        cancelLabel='Stay signed in'
+        confirmLabel='Sign out'
+        onCancel={dismiss}
+        onConfirm={() => {
+          dismiss();
+          void logout().then(() => router.replace('/(auth)/welcome'));
+        }}
+      />
     </View>
   );
 }
