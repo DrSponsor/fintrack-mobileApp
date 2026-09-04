@@ -22,11 +22,17 @@
  * its own bounded query and follows every page of it. The bound is the month,
  * so it always terminates — one request for a typical user.
  *
- * ── Balance is the bank's number, never ours ─────────────────────────────
- * Summing debits and credits would drift the moment anything happens that no
- * alert told us about. Accounts carry the balance the bank itself stated, so
- * that is what is shown, and null means genuinely unknown rather than zero.
- * See the note in the dashboard screen for why that distinction matters.
+ * ── Balance starts as the bank's number and is moved only by what it has
+ *    not seen ──────────────────────────────────────────────────────────────
+ * Summing every debit and credit ourselves would drift the moment anything
+ * happened that no alert told us about, so the bank's own stated figure is
+ * still the anchor and null still means genuinely unknown rather than zero.
+ *
+ * But that figure is only written by an alert carrying the bank's balance, so
+ * recording a payment by hand moved nothing — the app went on showing a
+ * balance the user had just told it was wrong. It now adds what has happened
+ * SINCE the bank last spoke, and the two parts stay separate all the way to
+ * the screen so it can say which is which.
  */
 import { useCallback, useEffect, useMemo } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -60,6 +66,9 @@ export interface DashboardSummary {
   readonly error: string | null;
   /** Null means genuinely unknown, never zero-as-unknown. */
   readonly balanceKobo: bigint | null;
+  /** How much of the balance above this app worked out rather than was told.
+   *  Zero when the bank's figure is current. */
+  readonly adjustmentKobo: bigint;
   readonly accountCount: number;
   /** When the balance was last stated by a bank. */
   readonly asOf: Date | null;
@@ -154,8 +163,6 @@ export function useDashboard(
 
   const totals = useMemo(() => summariseMonth(entries, names), [entries, names]);
 
-  // Keyed on the month rather than the Date object, for the same reason the
-  // window is —  is a fresh instance on every render.
   // Keyed on the month string rather than a Date, for the same reason the
   // window is: `now` is a fresh instance on every render, so depending on it
   // would rebuild the curve continuously.
@@ -167,13 +174,22 @@ export function useDashboard(
 
   const balance = useMemo(() => {
     const rows: readonly AccountSummary[] = accounts.data ?? [];
-    if (rows.length === 0) return { balanceKobo: null, accountCount: 0 };
+    if (rows.length === 0) return { balanceKobo: null, accountCount: 0, adjustmentKobo: 0n };
     // Every account the user holds, added together. An account whose bank has
     // not yet stated a balance contributes nothing and is not counted as zero.
     const known = rows.filter((a) => a.balanceKobo !== null && a.balanceKobo !== '');
-    if (known.length === 0) return { balanceKobo: null, accountCount: rows.length };
+    if (known.length === 0) return { balanceKobo: null, accountCount: rows.length, adjustmentKobo: 0n };
+
+    // The bank's figure plus what has happened since it said so. Recording a
+    // payment by hand used to move nothing, because only an alert carrying the
+    // bank's own balance ever wrote that column — so the app went on showing a
+    // balance it had just been told was wrong.
+    const stated = known.reduce((sum, a) => sum + BigInt(a.balanceKobo), 0n);
+    const adjustmentKobo = known.reduce((sum, a) => sum + BigInt(a.adjustmentKobo ?? '0'), 0n);
+
     return {
-      balanceKobo: known.reduce((sum, a) => sum + BigInt(a.balanceKobo), 0n),
+      balanceKobo: stated + adjustmentKobo,
+      adjustmentKobo,
       accountCount: rows.length,
     };
   }, [accounts.data]);
@@ -201,6 +217,7 @@ export function useDashboard(
     ready: !month.isPending,
     error: failure != null ? describe(failure) : null,
     balanceKobo: balance.balanceKobo,
+    adjustmentKobo: balance.adjustmentKobo,
     accountCount: balance.accountCount,
     asOf,
     inKobo: totals.inKobo,

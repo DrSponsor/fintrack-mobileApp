@@ -85,7 +85,12 @@ export interface AccountSummary {
   readonly accountType: 'CURRENT' | 'SAVINGS' | 'WALLET';
   readonly captureMethod: CaptureSource;
   readonly gmailConnected: boolean;
+  /** What the bank itself last stated. */
   readonly balanceKobo: string;
+  /** Net movement since it said so — typed entries, and alerts that carried no
+   *  figure of their own. Separate from the balance because one is the bank's
+   *  claim and the other is this app's, and the screen has to say which. */
+  readonly adjustmentKobo: string;
 }
 
 export interface CategorySummary {

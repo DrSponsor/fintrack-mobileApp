@@ -245,10 +245,20 @@ export default function DashboardScreen(): React.JSX.Element {
                   accessibilityLabel={`Balance ${formatKoboToNaira(summary.balanceKobo)}`}
                 />
                 <Text style={styles.note}>
-                  {summary.accountCount === 1
-                    ? 'As your bank last stated it'
-                    : `Across ${summary.accountCount} accounts, as last stated`}
-                  {summary.asOf !== null
+                  {/* A figure nobody can account for is a figure nobody
+                      trusts. When this app has moved the bank’s number, it
+                      says so and by how much, rather than quietly presenting
+                      arithmetic as a bank statement. */}
+                  {summary.adjustmentKobo === 0n
+                    ? summary.accountCount === 1
+                      ? 'As your bank last stated it'
+                      : `Across ${summary.accountCount} accounts, as last stated`
+                    : `${formatKoboToNaira(summary.balanceKobo - summary.adjustmentKobo)} from your bank, ${
+                        summary.adjustmentKobo < 0n ? 'less' : 'plus'
+                      } ${formatKoboToNaira(
+                        summary.adjustmentKobo < 0n ? -summary.adjustmentKobo : summary.adjustmentKobo,
+                      )} you added since`}
+                  {summary.asOf !== null && summary.adjustmentKobo === 0n
                     ? ` · to ${summary.asOf.toLocaleDateString(undefined, DAY_FORMAT)}`
                     : ''}
                 </Text>
