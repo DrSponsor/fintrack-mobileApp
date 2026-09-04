@@ -15,18 +15,23 @@
  * morning", "yesterday". Those are the shortcuts, and they resolve to a real
  * timestamp shown in full underneath, so nothing is hidden behind a label.
  *
- * The day stepper covers everything older. It is deliberately plain: no native
- * date picker is installed, and adding one for a path this rare would be a
- * dependency for a handful of taps. Back-dating a payment by more than a week
- * or two is the one case this serves poorly, and installing
- * @react-native-community/datetimepicker is the right fix if that turns out to
- * be common.
+ * The day stepper covers a few days back. Beyond that, and for any time of day
+ * the shortcuts do not name, tapping the resolved line opens WhenSheet and the
+ * moment is typed exactly.
+ *
+ * That reading was wrong when it was written here: it treated back-dating as
+ * the rare case and missed that time of day was unreachable at ANY distance —
+ * a payment made at 14:07 could be filed at 9am or noon and no nearer. The fix
+ * is not a native date picker, which cannot be added without rebuilding the
+ * dev client; it is a typed field with a line stating what was understood,
+ * which is the same device the amount field already relies on.
  */
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
+import { WhenSheet } from './WhenSheet';
 
 export interface WhenFieldProps {
   /** 1-based position on the form rail, rendered zero-padded. Matches RuledField. See ChoiceRow for why partial
@@ -83,6 +88,7 @@ export function describeWhen(value: Date, now: Date = new Date()): string {
 }
 
 export function WhenField({ value, onChange, error, index }: WhenFieldProps): React.JSX.Element {
+  const [editing, setEditing] = useState(false);
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -122,9 +128,24 @@ export function WhenField({ value, onChange, error, index }: WhenFieldProps): Re
       </View>
 
       <View style={styles.resolvedRow}>
-        <Text style={styles.resolved} accessibilityLiveRegion="polite">
-          {describeWhen(value, new Date(now))}
-        </Text>
+        {/* The resolved line is the way in to an exact time. Tapping what the
+            field already says is a more findable affordance than a separate
+            control, and it is the thing a person is looking at when they
+            notice it is wrong. */}
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync().catch(() => {});
+            setEditing(true);
+          }}
+          style={styles.resolvedTap}
+          accessibilityRole="button"
+          accessibilityLabel={`${describeWhen(value, new Date(now))}. Tap to set an exact date and time.`}
+        >
+          <Text style={styles.resolved} accessibilityLiveRegion="polite">
+            {describeWhen(value, new Date(now))}
+          </Text>
+          <Text style={styles.editHint}>Exact</Text>
+        </Pressable>
         <View style={styles.stepper}>
           <Pressable
             onPress={() => shiftDays(-1)}
@@ -171,6 +192,16 @@ export function WhenField({ value, onChange, error, index }: WhenFieldProps): Re
       </View>
 
       {error !== undefined && <Text style={styles.error}>{error}</Text>}
+
+      <WhenSheet
+        visible={editing}
+        value={value}
+        onCancel={() => setEditing(false)}
+        onConfirm={(next) => {
+          setEditing(false);
+          onChange(next);
+        }}
+      />
     </View>
   );
 }
@@ -190,6 +221,18 @@ function createStyles(theme: AppTheme) {
       color: theme.colors.text.disabled,
     },
     caption: {
+      ...theme.typography.micro,
+      letterSpacing: 1.2,
+      color: theme.colors.text.tertiary,
+    },
+    resolvedTap: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      flex: 1,
+      gap: theme.spacing.sm,
+    },
+    // Stated as a word rather than an icon, like CHANGE and SHOW elsewhere.
+    editHint: {
       ...theme.typography.micro,
       letterSpacing: 1.2,
       color: theme.colors.text.tertiary,
