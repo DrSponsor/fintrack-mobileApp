@@ -176,7 +176,10 @@ export function useDashboard(
     const rows: readonly AccountSummary[] = accounts.data ?? [];
     if (rows.length === 0) return { balanceKobo: null, accountCount: 0, adjustmentKobo: 0n };
     // Every account the user holds, added together. An account whose bank has
-    // not yet stated a balance contributes nothing and is not counted as zero.
+    // never stated a balance contributes nothing and is not counted as zero —
+    // the server sends null for exactly that case, so a newly discovered
+    // account does not turn its own adjustment into a confident negative
+    // balance.
     const known = rows.filter((a) => a.balanceKobo !== null && a.balanceKobo !== '');
     if (known.length === 0) return { balanceKobo: null, accountCount: rows.length, adjustmentKobo: 0n };
 
@@ -184,7 +187,7 @@ export function useDashboard(
     // payment by hand used to move nothing, because only an alert carrying the
     // bank's own balance ever wrote that column — so the app went on showing a
     // balance it had just been told was wrong.
-    const stated = known.reduce((sum, a) => sum + BigInt(a.balanceKobo), 0n);
+    const stated = known.reduce((sum, a) => sum + BigInt(a.balanceKobo ?? '0'), 0n);
     const adjustmentKobo = known.reduce((sum, a) => sum + BigInt(a.adjustmentKobo ?? '0'), 0n);
 
     return {
