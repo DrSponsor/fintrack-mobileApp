@@ -78,6 +78,10 @@ class RemoteLedgerRepositoryImpl implements ILedgerRepository {
     );
     return { scope: body.scope, backfilled: body.backfilled };
   }
+
+  async correctDate(id: string, at: Date): Promise<void> {
+    await api.patch(endpoints.transactions.updateDate(id), { transactionDate: at.toISOString() });
+  }
 }
 
 export const RemoteLedgerRepository: ILedgerRepository = new RemoteLedgerRepositoryImpl();

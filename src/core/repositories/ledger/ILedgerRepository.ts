@@ -73,4 +73,6 @@ export interface ILedgerRepository {
   getTransaction(id: string): Promise<LedgerEntry>;
   /** Re-files a transaction, returning what the change actually reached. */
   correctCategory(id: string, categoryId: string, scope: CorrectionScope): Promise<CorrectionResult>;
+  /** Moves a typed entry to when it actually happened. */
+  correctDate(id: string, at: Date): Promise<void>;
 }

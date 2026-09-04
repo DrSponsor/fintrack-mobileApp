@@ -34,6 +34,7 @@ import { NoticeBand, ActionButton } from '@/design-system/components';
 import { ChoiceRow } from '@/features/capture/components/ChoiceRow';
 import { ScopeSheet } from '@/features/transactions/components/ScopeSheet';
 import { useTransactionDetail } from '@/features/transactions/hooks/useTransactionDetail';
+import { WhenSheet } from '@/features/capture/components/WhenSheet';
 import { entryTime, signedNaira } from '@/features/transactions/ledger';
 import type { CorrectionScope } from '@/core/repositories/ledger/ILedgerRepository';
 import type { CaptureSource } from '@/features/capture/types';
@@ -63,12 +64,13 @@ export default function TransactionDetailScreen(): React.JSX.Element {
 
   const { id } = useLocalSearchParams<{ id: string }>();
   const detail = useTransactionDetail(id ?? '');
+  const [movingWhen, setMovingWhen] = useState(false);
 
   // Held between the two steps: the user picks a category, then says how far
   // it reaches. Nothing is sent until the second answer.
   const [pending, setPending] = useState<string | null>(null);
 
-  const { entry, categories, account, correct, lastCorrection } = detail;
+  const { entry, categories, account, correct, lastCorrection, correctDate, canMoveDate } = detail;
 
   const categoryName = useCallback(
     (categoryId: string | undefined): string | undefined =>
@@ -177,7 +179,33 @@ export default function TransactionDetailScreen(): React.JSX.Element {
               emptyMessage="Categories have not loaded yet."
             />
 
-            <Field index={2} label="When" value={`${fullDate(new Date(entry.transactionDate))}, ${entryTime(new Date(entry.transactionDate))}`} />
+            {/* Editable only where the app has any business editing: a row
+                the user typed, that no bank alert has confirmed. Everything
+                else is the bank’s statement about its own money, and the
+                action is simply absent rather than offered and refused. */}
+            {canMoveDate ? (
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  setMovingWhen(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`When: ${fullDate(new Date(entry.transactionDate))}. Tap to change.`}
+              >
+                <Field
+                  index={2}
+                  label="When"
+                  action="Change"
+                  value={`${fullDate(new Date(entry.transactionDate))}, ${entryTime(new Date(entry.transactionDate))}`}
+                />
+              </Pressable>
+            ) : (
+              <Field
+                index={2}
+                label="When"
+                value={`${fullDate(new Date(entry.transactionDate))}, ${entryTime(new Date(entry.transactionDate))}`}
+              />
+            )}
 
             <Field
               index={3}
@@ -213,6 +241,18 @@ export default function TransactionDetailScreen(): React.JSX.Element {
         onChoose={handleScope}
         onCancel={() => setPending(null)}
       />
+
+      {entry !== undefined && (
+        <WhenSheet
+          visible={movingWhen}
+          value={new Date(entry.transactionDate)}
+          onCancel={() => setMovingWhen(false)}
+          onConfirm={(next) => {
+            setMovingWhen(false);
+            correctDate(next);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -224,12 +264,16 @@ function Field({
   value,
   technical = false,
   selectable = false,
+  action,
 }: {
   readonly index: number;
   readonly label: string;
   readonly value: string;
   readonly technical?: boolean;
   readonly selectable?: boolean;
+  /** Stated as a word at the right of the caption, like CHANGE on the
+   *  category row. Present only when the field can actually be changed. */
+  readonly action?: string;
 }): React.JSX.Element {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -239,6 +283,7 @@ function Field({
       <View style={styles.fieldCaption}>
         <Text style={styles.fieldIndex}>{String(index).padStart(2, '0')}</Text>
         <Text style={styles.fieldLabel}>{label}</Text>
+        {action !== undefined && <Text style={styles.fieldAction}>{action}</Text>}
       </View>
       <View style={styles.fieldValueRow}>
         <View style={styles.rail} />
@@ -331,6 +376,14 @@ function createStyles(theme: AppTheme) {
       ...theme.typography.micro,
       letterSpacing: 1.2,
       color: theme.colors.text.tertiary,
+    },
+    // Same slot and voice as CHANGE on the category row and SHOW on a
+    // password: an action stated as a word, at the right of a caption.
+    fieldAction: {
+      ...theme.typography.micro,
+      letterSpacing: 1.2,
+      color: theme.colors.text.secondary,
+      marginLeft: 'auto',
     },
     fieldValueRow: {
       flexDirection: 'row',

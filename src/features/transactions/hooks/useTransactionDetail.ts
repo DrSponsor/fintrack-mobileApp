@@ -47,6 +47,11 @@ export interface UseTransactionDetailResult {
   /** What the last correction actually reached. Cleared when the user dismisses it. */
   readonly lastCorrection: CorrectionResult | null;
   readonly correct: (categoryId: string, scope: CorrectionScope) => void;
+  /** Moves a typed entry. Only offered when canMoveDate is true. */
+  readonly correctDate: (at: Date) => void;
+  /** True only for a typed entry no bank alert has confirmed. */
+  readonly canMoveDate: boolean;
+  readonly movingDate: boolean;
   readonly acknowledge: () => void;
   readonly retry: () => void;
 }
@@ -92,6 +97,18 @@ export function useTransactionDetail(
     },
   });
 
+  const dateCorrection = useMutation({
+    mutationFn: (at: Date) => repo.correctDate(id, at),
+    onSuccess: () => {
+      // The ledger sorts on this, the dashboard’s balance counts entries
+      // after the bank’s last stated figure, and the month it belongs to may
+      // have changed. Everything that reads a date has to be re-read.
+      void queryClient.invalidateQueries({ queryKey: detailKeys.transaction(user, id) });
+      void queryClient.invalidateQueries({ queryKey: ledgerKeys.all(user) });
+      void queryClient.invalidateQueries({ queryKey: ['ledger', user, 'accounts'] });
+    },
+  });
+
   const entry = transaction.data;
 
   const account = useMemo(
@@ -107,6 +124,14 @@ export function useTransactionDetail(
     },
     [mutate],
   );
+
+  const { mutate: moveDate } = dateCorrection;
+
+  const correctDate = useCallback((at: Date) => moveDate(at), [moveDate]);
+
+  // The rule the server enforces, stated here so the screen can offer the
+  // action only when it would succeed rather than surfacing a refusal.
+  const canMoveDate = entry?.source === 'MANUAL' && entry.isVerified === false;
 
   const acknowledge = useCallback(() => {
     reset();
@@ -131,6 +156,9 @@ export function useTransactionDetail(
     correcting: correction.isPending,
     lastCorrection: correction.data ?? null,
     correct,
+    correctDate,
+    canMoveDate,
+    movingDate: dateCorrection.isPending,
     acknowledge,
     retry,
   };
