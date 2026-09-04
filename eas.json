@@ -34,6 +34,18 @@
       "ios": {
         "autoIncrement": true
       }
+    },
+    "demo": {
+      "extends": "staging",
+      "distribution": "internal",
+      "channel": "demo",
+      "env": {
+        "APP_ENV": "staging",
+        "EXPO_PUBLIC_API_URL": ""
+      },
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

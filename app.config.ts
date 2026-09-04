@@ -5,10 +5,24 @@ const IS_STAGING = process.env.APP_ENV === 'staging';
 const EAS_PROJECT_ID =
   process.env.EAS_PROJECT_ID ?? '6e6f1650-a353-499f-91de-6f3776daf3fc';
 
+/**
+ * Where the app talks to.
+ *
+ * The two hostnames below do not exist yet. Neither did they when the build
+ * profiles were written, which is how a build could have been shipped that
+ * signs a person up and then fails on every request afterwards — the failure
+ * looks like a broken app rather than a missing server.
+ *
+ * So a build for anybody else MUST pass EXPO_PUBLIC_API_URL explicitly:
+ *
+ *   EXPO_PUBLIC_API_URL=https://… eas build --profile demo --platform android
+ */
 const getApiUrl = (): string => {
   if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
   if (process.env.DEV_API_URL) return process.env.DEV_API_URL;
   if (IS_DEV) return 'http://10.0.2.2:3000'; // Android emulator → host machine
+  // Placeholders, not deployments. A build that reaches either of these is a
+  // build nobody supplied a real server to.
   if (IS_STAGING) return 'https://staging-api.fintrack.ng';
   return 'https://api.fintrack.ng';
 };
