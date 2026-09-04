@@ -119,8 +119,14 @@ export const api = {
     return response.data.data;
   },
 
-  async delete<T>(url: string): Promise<T> {
-    const response = await apiClient.delete<ApiResponse<T>>(url);
+  /**
+   * `headers` for the same reason post has it: the backend requires an
+   * Idempotency-Key on every financial mutation, and removing an account is
+   * one. Without the parameter the call could not send it at all, so the
+   * server refused every attempt with ‘Idempotency-Key header is required’.
+   */
+  async delete<T>(url: string, headers?: Record<string, string>): Promise<T> {
+    const response = await apiClient.delete<ApiResponse<T>>(url, headers ? { headers } : undefined);
     return response.data.data;
   },
 };

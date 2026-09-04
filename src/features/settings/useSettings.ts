@@ -12,6 +12,7 @@ import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, readApiError } from '@/core/api/client';
 import { endpoints } from '@/core/api/endpoints';
+import { createIdempotencyKey } from '@/features/capture/idempotency';
 import type { AccountSummary } from '@/features/capture/types';
 import { useUserScope } from '@/features/transactions/hooks/useUserScope';
 
@@ -65,7 +66,15 @@ export function useSettings(): UseSettingsResult {
   });
 
   const removal = useMutation({
-    mutationFn: (id: string) => api.delete(endpoints.accounts.delete(id)),
+    // Removing an account is a financial mutation as far as the backend is
+    // concerned — it cascades to every transaction on that account — so it
+    // requires an Idempotency-Key like any other. A fresh key per attempt: a
+    // retry of THIS delete is safe, and a later delete of a different account
+    // must not be mistaken for a replay of this one.
+    mutationFn: (id: string) =>
+      api.delete(endpoints.accounts.delete(id), {
+        'Idempotency-Key': createIdempotencyKey(),
+      }),
     onSuccess: () => {
       // Every screen that counts money reads accounts or transactions, and
       // removing an account cascades to its transactions — so both go.
