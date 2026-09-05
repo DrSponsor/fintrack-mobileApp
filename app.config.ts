@@ -110,6 +110,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         minimumInterval: 15 * 60,
       },
     ],
+    // Strips the notification listener and the draw-over-other-apps permission
+    // from anything that is not a development build. Both are unreachable in a
+    // release build, and together they read as an overlay banking trojan —
+    // which got the demo APK hard blocked by Play Protect. See the file.
+    './plugins/withReleaseHardening',
   ],
 
   experiments: {
