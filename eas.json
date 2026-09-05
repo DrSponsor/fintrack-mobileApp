@@ -41,7 +41,7 @@
       "channel": "demo",
       "env": {
         "APP_ENV": "staging",
-        "EXPO_PUBLIC_API_URL": ""
+        "EXPO_PUBLIC_API_URL": "https://fintrack-backend-production-a603.up.railway.app"
       },
       "android": {
         "buildType": "apk"
