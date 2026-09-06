@@ -10,9 +10,12 @@
  * "record it anyway" would silently do nothing. See idempotency.ts.
  */
 import { useCallback, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { readApiError } from '@/core/api/client';
 import { RemoteCaptureRepository } from '@/core/repositories/capture/RemoteCaptureRepository';
 import type { ICaptureRepository } from '@/core/repositories/capture/ICaptureRepository';
+import { ledgerKeys } from '@/features/transactions/hooks/useLedger';
+import { useUserScope } from '@/features/transactions/hooks/useUserScope';
 import { createIdempotencyKey } from '../idempotency';
 import type { CapturedTransaction, ManualEntryPayload, ManualCaptureResult } from '../types';
 
@@ -48,6 +51,9 @@ export function useManualEntry(
   const [errorCode, setErrorCode] = useState<string | undefined>(undefined);
   const [duplicate, setDuplicate] = useState<DuplicateQuestion | null>(null);
 
+  const queryClient = useQueryClient();
+  const user = useUserScope();
+
   /** Held so a retry after a timeout re-sends the same key. */
   const keyRef = useRef<string | null>(null);
   /** The payload the duplicate question is about, for the forced re-send. */
@@ -71,6 +77,32 @@ export function useManualEntry(
           // retry of the same question must not become a second entry.
           keyRef.current = null;
           setDuplicate(null);
+
+          // Tell every screen that reads the ledger that it just changed.
+          //
+          // Without this, recording a payment by hand left the dashboard
+          // showing the month and balance it had cached before the entry
+          // existed, and the only way to see the new figure was to know to
+          // pull down on it. Someone recording their first transaction has no
+          // reason to know that — they see the app fail to notice what they
+          // just told it, which reads as the entry not having saved.
+          //
+          // `ledgerKeys.all(user)` is the PREFIX ['ledger', user], and every
+          // affected query hangs off it: the ledger list, the dashboard's
+          // month window, and the accounts query the balance is summed from.
+          // React Query matches invalidation by prefix, so one call reaches
+          // all three. Accounts matters most and is easiest to miss — it is
+          // cached for an hour, and it carries the adjustment that makes a
+          // manual entry move the balance at all. Invalidation overrides
+          // staleTime, so the hour does not hold the old figure on screen.
+          //
+          // Deliberately not a focus-refetch on the dashboard instead. That
+          // would refetch on every tab switch and undo the 30-second staleTime
+          // that makes tab switching instant (see queryClient.ts). The write
+          // is what knows the data changed, so the write is what says so —
+          // which is also how correctCategory and correctDate already work.
+          void queryClient.invalidateQueries({ queryKey: ledgerKeys.all(user) });
+
           return result.transaction;
         }
 
@@ -98,7 +130,7 @@ export function useManualEntry(
         setSubmitting(false);
       }
     },
-    [repository],
+    [repository, queryClient, user],
   );
 
   const submit = useCallback(

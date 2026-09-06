@@ -6,6 +6,8 @@
  * requirements pull in opposite directions — stable across retries of one
  * submission, fresh for a genuinely new one — so each is pinned separately.
  */
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, act } from '@testing-library/react-native';
 import { useManualEntry } from './useManualEntry';
 import type { ICaptureRepository } from '@/core/repositories/capture/ICaptureRepository';
@@ -54,10 +56,23 @@ function keysUsed(repo: ICaptureRepository): string[] {
   return (repo.createManualEntry as jest.Mock).mock.calls.map((call) => call[1] as string);
 }
 
+/**
+ * The hook invalidates the ledger cache on a recorded entry, so it needs a
+ * QueryClient in scope. A fresh one per test — a shared client would carry
+ * one test's invalidation into the next.
+ */
+let client: QueryClient;
+let wrapper: React.FC<{ children: React.ReactNode }>;
+
+beforeEach(() => {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  wrapper = ({ children }) => React.createElement(QueryClientProvider, { client }, children);
+});
+
 describe('useManualEntry', () => {
   it('returns the created transaction', async () => {
     const repo = makeRepo();
-    const { result } = renderHook(() => useManualEntry(repo));
+    const { result } = renderHook(() => useManualEntry(repo), { wrapper });
 
     let created: CapturedTransaction | null = null;
     await act(async () => {
@@ -78,7 +93,7 @@ describe('useManualEntry', () => {
         .mockRejectedValueOnce(new Error('network'))
         .mockResolvedValueOnce(recorded),
     });
-    const { result } = renderHook(() => useManualEntry(repo));
+    const { result } = renderHook(() => useManualEntry(repo), { wrapper });
 
     await act(async () => {
       await result.current.submit(PAYLOAD);
@@ -93,7 +108,7 @@ describe('useManualEntry', () => {
 
   it('mints a fresh key for a submission after a successful one', async () => {
     const repo = makeRepo();
-    const { result } = renderHook(() => useManualEntry(repo));
+    const { result } = renderHook(() => useManualEntry(repo), { wrapper });
 
     await act(async () => {
       await result.current.submit(PAYLOAD);
@@ -110,13 +125,70 @@ describe('useManualEntry', () => {
     // Distinct from a server rejection: it tells the user to retry rather than
     // to re-enter, and those lead to opposite actions.
     const repo = makeRepo({ createManualEntry: jest.fn().mockRejectedValue(new Error('timeout')) });
-    const { result } = renderHook(() => useManualEntry(repo));
+    const { result } = renderHook(() => useManualEntry(repo), { wrapper });
 
     await act(async () => {
       await result.current.submit(PAYLOAD);
     });
 
     expect(result.current.error).toContain('Nothing has been saved');
+  });
+
+  describe('telling the rest of the app the ledger changed', () => {
+    // Without this, a saved entry left the dashboard showing the month and
+    // balance it had cached beforehand, and only a pull-to-refresh revealed
+    // it. A first-time user has no reason to know to do that — the app looks
+    // like it ignored what they just recorded.
+    function invalidatedKeys(spy: jest.SpyInstance): unknown[] {
+      return spy.mock.calls.map((call) => (call[0] as { queryKey: unknown }).queryKey);
+    }
+
+    it('invalidates the ledger tree once the entry is recorded', async () => {
+      const repo = makeRepo();
+      const spy = jest.spyOn(client, 'invalidateQueries');
+      const { result } = renderHook(() => useManualEntry(repo), { wrapper });
+
+      await act(async () => {
+        await result.current.submit(PAYLOAD);
+      });
+
+      // The PREFIX, not one leaf. The dashboard's month window, its accounts
+      // query and the ledger list all hang off it, and React Query matches
+      // invalidation by prefix — so this one call reaches all three.
+      expect(invalidatedKeys(spy)).toContainEqual(['ledger', 'anonymous']);
+    });
+
+    it('does not invalidate while the duplicate question is unanswered', async () => {
+      // Nothing was written, so nothing downstream changed. Refetching here
+      // would be a pointless round trip on a screen that is mid-question.
+      const repo = makeRepo({
+        createManualEntry: jest.fn().mockResolvedValue({
+          outcome: 'already-recorded',
+          transaction: makeTransaction({ id: 'existing-1' }),
+          reason: 'already captured',
+        } satisfies ManualCaptureResult),
+      });
+      const spy = jest.spyOn(client, 'invalidateQueries');
+      const { result } = renderHook(() => useManualEntry(repo), { wrapper });
+
+      await act(async () => {
+        await result.current.submit(PAYLOAD);
+      });
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('does not invalidate when the entry failed to save', async () => {
+      const repo = makeRepo({ createManualEntry: jest.fn().mockRejectedValue(new Error('timeout')) });
+      const spy = jest.spyOn(client, 'invalidateQueries');
+      const { result } = renderHook(() => useManualEntry(repo), { wrapper });
+
+      await act(async () => {
+        await result.current.submit(PAYLOAD);
+      });
+
+      expect(spy).not.toHaveBeenCalled();
+    });
   });
 
   describe('the duplicate question', () => {
@@ -128,7 +200,7 @@ describe('useManualEntry', () => {
 
     it('raises the question instead of returning a transaction', async () => {
       const repo = makeRepo({ createManualEntry: jest.fn().mockResolvedValue(duplicate) });
-      const { result } = renderHook(() => useManualEntry(repo));
+      const { result } = renderHook(() => useManualEntry(repo), { wrapper });
 
       let created: CapturedTransaction | null = makeTransaction();
       await act(async () => {
@@ -152,7 +224,7 @@ describe('useManualEntry', () => {
           .mockResolvedValueOnce(duplicate)
           .mockResolvedValueOnce(recorded),
       });
-      const { result } = renderHook(() => useManualEntry(repo));
+      const { result } = renderHook(() => useManualEntry(repo), { wrapper });
 
       await act(async () => {
         await result.current.submit(PAYLOAD);
@@ -171,7 +243,7 @@ describe('useManualEntry', () => {
 
     it('does not force anything when the user backs out', async () => {
       const repo = makeRepo({ createManualEntry: jest.fn().mockResolvedValue(duplicate) });
-      const { result } = renderHook(() => useManualEntry(repo));
+      const { result } = renderHook(() => useManualEntry(repo), { wrapper });
 
       await act(async () => {
         await result.current.submit(PAYLOAD);
