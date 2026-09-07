@@ -49,7 +49,15 @@ import { clearPendingState, rememberPendingState } from './oauthState';
 
 export interface DiscoveredAccount {
   readonly bankName: string;
-  readonly accountMask: string;
+  /**
+   * Null when the bank never printed the OWNER'S account number.
+   *
+   * Opay is the case: its alert states the owner's name and balance, and the
+   * only account number anywhere in the email belongs to whoever they paid.
+   * The server returns null rather than that stranger's number, and such an
+   * account is identified by bank and holder name instead.
+   */
+  readonly accountMask: string | null;
   readonly holderName: string | null;
 }
 

@@ -48,7 +48,9 @@ import {
 const DEFAULT_TYPE: AccountType = 'SAVINGS';
 
 function keyOf(account: DiscoveredAccount): string {
-  return `${account.bankName}::${account.accountMask}`;
+  // Falls back to the holder when there is no number, because that is what
+  // identifies the account in that case — see DiscoveredAccount.accountMask.
+  return `${account.bankName}::${account.accountMask ?? account.holderName ?? ''}`;
 }
 
 /**
@@ -94,7 +96,11 @@ function DiscoveredRow({
         style={styles.row}
         accessibilityRole='checkbox'
         accessibilityState={{ checked: picked }}
-        accessibilityLabel={`${account.bankName}, account ending ${account.accountMask}`}
+        accessibilityLabel={
+          account.accountMask !== null
+            ? `${account.bankName}, account ending ${account.accountMask}`
+            : `${account.bankName}, account held by ${account.holderName ?? 'you'}`
+        }
       >
         {/* Same 2px tick that marks a live field and a chosen picker row, so
             ‘this one’ is stated identically everywhere in the app. */}
@@ -103,7 +109,13 @@ function DiscoveredRow({
           <Text style={[styles.bank, picked && styles.bankOn]} numberOfLines={1}>
             {account.bankName}
           </Text>
-          <Text style={styles.mask}>{formatAccountMask(account.accountMask)}</Text>
+          {/* Omitted entirely when the bank never printed the owner's number.
+              A row reading "****null" would look like a rendering fault, and
+              inventing a placeholder number would be worse still — the holder
+              name below is what identifies this account. */}
+          {formatAccountMask(account.accountMask) !== null && (
+            <Text style={styles.mask}>{formatAccountMask(account.accountMask)}</Text>
+          )}
           {account.holderName !== null && (
             <Text style={styles.holder} numberOfLines={1}>
               {account.holderName}
