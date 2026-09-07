@@ -31,6 +31,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
+import { QuietButton } from '@/design-system/components';
 import { formatKoboToNaira } from '@/shared/components/AmountDisplay/AmountDisplay';
 import type { DuplicateQuestion } from '../hooks/useManualEntry';
 import { describeWhen } from './WhenField';
@@ -125,17 +126,13 @@ export function DuplicateNotice({
             <Text style={styles.primaryLabel}>Keep the one I have</Text>
           </Pressable>
 
-          <Pressable
+          <QuietButton
+            tone="outlined"
+            label={isSubmitting ? 'Recording…' : 'These are different — record it'}
             onPress={onRecordAnyway}
             disabled={isSubmitting}
-            style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
-            accessibilityRole="button"
             accessibilityHint="Records your entry as a separate transaction"
-          >
-            <Text style={styles.secondaryLabel}>
-              {isSubmitting ? 'Recording…' : 'These are different — record it'}
-            </Text>
-          </Pressable>
+          />
         </View>
       </View>
     </Modal>
@@ -222,19 +219,6 @@ function createStyles(theme: AppTheme) {
     primaryLabel: {
       ...theme.typography.button,
       color: theme.colors.action.on,
-    },
-    secondary: {
-      minHeight: 50,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: theme.spacing.xs,
-    },
-    secondaryPressed: {
-      opacity: 0.6,
-    },
-    secondaryLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text.secondary,
     },
   });
 }

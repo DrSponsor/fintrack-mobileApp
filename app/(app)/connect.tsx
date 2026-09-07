@@ -32,7 +32,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
-import { ActionButton, NoticeBand } from '@/design-system/components';
+import { ActionButton, NoticeBand, QuietButton } from '@/design-system/components';
 import { Reveal } from '@/design-system/motion/Reveal';
 import { ScanningLedger } from '@/features/onboarding/connect/ScanningLedger';
 import { SNAP, useReducedMotion } from '@/design-system/motion/springs';
@@ -280,16 +280,12 @@ export default function ConnectScreen(): React.JSX.Element {
             <View style={styles.commit}>
               <ActionButton label='Try again' loadingLabel='Reading…' onPress={rescan} />
             </View>
-            <Pressable
+            <QuietButton
+              label={switching ? 'Disconnecting…' : 'Use a different email'}
               onPress={() => void switchEmail()}
               disabled={switching}
-              style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
-              accessibilityRole='button'
-            >
-              <Text style={styles.secondaryLabel}>
-                {switching ? 'Disconnecting…' : 'Use a different email'}
-              </Text>
-            </Pressable>
+              accessibilityHint='Forgets this inbox so a different Google account can be connected'
+            />
           </Reveal>
         )}
 
@@ -456,18 +452,5 @@ function createStyles(theme: AppTheme) {
     },
     /** The lesser of two actions, same shape as the one in WhenSheet so
      *  "the quieter choice" looks identical wherever it appears. */
-    secondary: {
-      minHeight: 50,
-      marginTop: theme.spacing.xs,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    secondaryPressed: {
-      opacity: 0.6,
-    },
-    secondaryLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text.secondary,
-    },
   });
 }

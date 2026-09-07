@@ -48,7 +48,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
 import { categoryPalette } from '@/design-system/tokens';
-import { ActionButton, NoticeBand } from '@/design-system/components';
+import { ActionButton, NoticeBand, QuietButton } from '@/design-system/components';
 import { Reveal } from '@/design-system/motion/Reveal';
 import { RollingNumber } from '@/design-system/motion/RollingNumber';
 import { formatKoboToNaira } from '@/shared/components/AmountDisplay/AmountDisplay';
@@ -427,20 +427,15 @@ function EmptyMonth({
         its own — there is nothing to set up and nothing to type.
       </Text>
       {/* Deliberately quieter than the one above, and still visibly a button.
-          
+
           Recording by hand is the alternative here, not the instruction — the
           sentence above says the ledger fills itself, and the ledger's own
           header carries a + for this. So it gets an outline rather than a
           fill: enough edge to read as a control, not enough weight to argue
           with the message it sits under. */}
-      <Pressable
-        onPress={onManual}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.quietAction, pressed && styles.quietActionPressed]}
-        hitSlop={8}
-      >
-        <Text style={styles.quietActionLabel}>Record one by hand</Text>
-      </Pressable>
+      <View style={styles.emptyAction}>
+        <QuietButton tone="outlined" label="Record one by hand" onPress={onManual} />
+      </View>
     </View>
   );
 }
@@ -568,37 +563,6 @@ function createStyles(theme: AppTheme) {
     },
     emptyAction: {
       marginTop: theme.spacing.xl,
-    },
-    /**
-     * An outlined button: a control by its edge rather than by its fill.
-     *
-     * The edge is brass, not a white rule. colors.rule.strong is 16% white,
-     * which composites to 1.54:1 against this ground — a boundary WCAG asks to
-     * be 3:1, and in practice a line you have to hunt for. Using it here would
-     * have replaced one invisible control with another. Brass measures 8.75:1,
-     * and a full-width border rather than a hairline gives it presence at a
-     * glance.
-     *
-     * Same family as the filled button above, one rank down: outline instead
-     * of fill is the difference, so the hierarchy is legible without either
-     * one stopping being a button.
-     */
-    quietAction: {
-      marginTop: theme.spacing.xl,
-      minHeight: 48,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: theme.colors.action.base,
-      borderRadius: theme.radius.md,
-      paddingHorizontal: theme.spacing.lg,
-    },
-    quietActionPressed: {
-      opacity: 0.6,
-    },
-    quietActionLabel: {
-      ...theme.typography.bodyStrong,
-      color: theme.colors.action.base,
     },
   });
 }

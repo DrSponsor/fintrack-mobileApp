@@ -31,6 +31,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
+import { QuietButton } from '@/design-system/components';
 import type { CorrectionScope } from '@/core/repositories/ledger/ILedgerRepository';
 
 export interface ScopeSheetProps {
@@ -104,9 +105,7 @@ export function ScopeSheet({
 
           <View style={styles.rule} />
 
-          <Pressable style={styles.cancel} onPress={onCancel} accessibilityRole="button">
-            <Text style={styles.cancelLabel}>Leave it as it was</Text>
-          </Pressable>
+          <QuietButton label="Cancel" onPress={onCancel} />
         </Pressable>
       </Pressable>
     </Modal>
@@ -170,15 +169,6 @@ function createStyles(theme: AppTheme) {
       ...theme.typography.caption,
       color: theme.colors.text.secondary,
       marginTop: theme.spacing.hair,
-    },
-    cancel: {
-      minHeight: 50,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    cancelLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text.secondary,
     },
   });
 }

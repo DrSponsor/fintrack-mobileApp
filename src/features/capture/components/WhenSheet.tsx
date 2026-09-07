@@ -34,7 +34,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
-import { ActionButton, RuledField } from '@/design-system/components';
+import { ActionButton, QuietButton, RuledField } from '@/design-system/components';
 
 export interface WhenSheetProps {
   readonly visible: boolean;
@@ -292,13 +292,7 @@ export function WhenSheet({ visible, value, onCancel, onConfirm }: WhenSheetProp
             />
           </View>
 
-          <Pressable
-            onPress={onCancel}
-            style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
-            accessibilityRole="button"
-          >
-            <Text style={styles.secondaryLabel}>Cancel</Text>
-          </Pressable>
+          <QuietButton label="Cancel" onPress={onCancel} />
         </Pressable>
       </Pressable>
     </Modal>
@@ -370,19 +364,6 @@ function createStyles(theme: AppTheme) {
     },
     commit: {
       marginTop: theme.spacing.md,
-    },
-    secondary: {
-      minHeight: 50,
-      marginTop: theme.spacing.xs,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    secondaryPressed: {
-      opacity: 0.6,
-    },
-    secondaryLabel: {
-      ...theme.typography.body,
-      color: theme.colors.text.secondary,
     },
   });
 }
