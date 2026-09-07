@@ -83,6 +83,48 @@ export function maskTime(raw: string): string {
   return digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 
+/** Which half of the day. */
+export type Meridiem = 'am' | 'pm';
+
+/**
+ * 12-hour input, 24-hour meaning.
+ *
+ * ── Why the field is not 24-hour any more ────────────────────────────────
+ * It was, and it was labelled "Time · 24-hour" while the confirmation line
+ * beneath it read the moment back through `toLocaleTimeString`, which follows
+ * the device locale and on most phones says "2:07 PM". So the field asked for
+ * one clock and answered in another.
+ *
+ * People also think in 12-hour here, and the failure mode of asking them not
+ * to is quiet: someone meaning two in the afternoon types 2:00, and a payment
+ * is filed twelve hours from where it happened. Nothing about the row looks
+ * wrong afterwards.
+ *
+ * ── Why am/pm is seeded rather than defaulted ────────────────────────────
+ * A control that always starts on am just moves the same twelve-hour error
+ * somewhere less visible — from a mistyped hour to an unread toggle. It opens
+ * on whichever half the existing value falls in, so the common case (recording
+ * something that just happened) is already correct before anyone touches it.
+ *
+ * Midnight and noon are the two that trip every implementation: 12 am is hour
+ * 0, 12 pm is hour 12, and neither is "add twelve".
+ */
+export function toTwentyFourHour(hour12: number, meridiem: Meridiem): number {
+  const wrapped = hour12 % 12; // 12 → 0, which is what both branches need.
+  return meridiem === 'am' ? wrapped : wrapped + 12;
+}
+
+/** The half of the day a moment falls in, for seeding the control. */
+export function meridiemOf(at: Date): Meridiem {
+  return at.getHours() < 12 ? 'am' : 'pm';
+}
+
+/** A moment's hour on a 12-hour clock, for seeding the field. */
+export function twelveHourOf(at: Date): number {
+  const hour = at.getHours() % 12;
+  return hour === 0 ? 12 : hour;
+}
+
 export function maskDate(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8);
   if (digits.length <= 2) return digits;
@@ -100,13 +142,14 @@ export function maskDate(raw: string): string {
 export function readWhen(
   dateText: string,
   timeText: string,
+  meridiem: Meridiem,
   now: Date = new Date(),
 ): { readonly at: Date } | { readonly problem: string } {
   const d = /^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/.exec(dateText.trim());
   if (!d) return { problem: 'Write the date as day/month/year, like 22/08/2026.' };
 
   const t = /^(\d{1,2})\s*:\s*(\d{2})$/.exec(timeText.trim());
-  if (!t) return { problem: 'Write the time as hours:minutes on a 24-hour clock, like 14:07.' };
+  if (!t) return { problem: 'Write the time as hours:minutes, like 2:07.' };
 
   const day = Number(d[1]);
   const month = Number(d[2]);
@@ -115,10 +158,15 @@ export function readWhen(
   const minute = Number(t[2]);
 
   if (month < 1 || month > 12) return { problem: 'There is no month ' + month + '.' };
-  if (hour > 23) return { problem: 'There is no hour ' + hour + ' on a 24-hour clock.' };
+  if (hour < 1 || hour > 12) {
+    // Someone reaching for 24-hour habit, or a slip. Say which clock this is
+    // rather than "invalid": the field now takes 1–12 with am/pm beside it,
+    // and the fix is obvious once that is stated.
+    return { problem: 'Write the hour as 1 to 12, then choose am or pm.' };
+  }
   if (minute > 59) return { problem: 'There is no minute ' + minute + '.' };
 
-  const at = new Date(year, month - 1, day, hour, minute, 0, 0);
+  const at = new Date(year, month - 1, day, toTwentyFourHour(hour, meridiem), minute, 0, 0);
 
   // Rebuilding the date is what catches 31 February: JavaScript rolls it
   // forward to 3 March without complaint, so the only way to know it was never
@@ -147,10 +195,16 @@ export function WhenSheet({ visible, value, onCancel, onConfirm }: WhenSheetProp
     () => `${pad(value.getDate())}/${pad(value.getMonth() + 1)}/${value.getFullYear()}`,
   );
   const [timeText, setTimeText] = useState(
-    () => `${pad(value.getHours())}:${pad(value.getMinutes())}`,
+    () => `${twelveHourOf(value)}:${pad(value.getMinutes())}`,
   );
+  // Seeded, never defaulted — see toTwentyFourHour for why a control that
+  // always opens on am is the same twelve-hour bug wearing a different hat.
+  const [meridiem, setMeridiem] = useState<Meridiem>(() => meridiemOf(value));
 
-  const read = useMemo(() => readWhen(dateText, timeText), [dateText, timeText]);
+  const read = useMemo(
+    () => readWhen(dateText, timeText, meridiem),
+    [dateText, timeText, meridiem],
+  );
   const understood = 'at' in read ? read.at : null;
 
   if (!visible) return null;
@@ -175,14 +229,42 @@ export function WhenSheet({ visible, value, onCancel, onConfirm }: WhenSheetProp
             />
             <RuledField
               index={2}
-              label="Time · 24-hour"
+              label="Time"
               voice="identifier"
               value={timeText}
               onChangeText={(next) => setTimeText(maskTime(next))}
-              placeholder="14:07"
+              placeholder="2:07"
               keyboardType="number-pad"
               maxLength={5}
             />
+
+            {/* Two buttons rather than a switch. A switch has an off state,
+                and "not pm" is not a thing a person means — both halves of the
+                day are a positive choice, and both must be equally visible or
+                the unselected one stops being noticed. */}
+            <View style={styles.meridiem} accessibilityRole="radiogroup">
+              {(['am', 'pm'] as const).map((half) => {
+                const on = meridiem === half;
+                return (
+                  <Pressable
+                    key={half}
+                    onPress={() => setMeridiem(half)}
+                    style={({ pressed }) => [
+                      styles.half,
+                      on && styles.halfOn,
+                      pressed && styles.halfPressed,
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={half === 'am' ? 'Morning, a m' : 'Afternoon or evening, p m'}
+                  >
+                    <Text style={[styles.halfLabel, on && styles.halfLabelOn]}>
+                      {half}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           {/* What the app understood, written out. Same device as the amount
@@ -244,6 +326,35 @@ function createStyles(theme: AppTheme) {
     },
     fields: {
       marginTop: theme.spacing.sm,
+    },
+    meridiem: {
+      flexDirection: 'row',
+      marginTop: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    half: {
+      flex: 1,
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.rule.edge,
+      borderRadius: theme.radius.sm,
+    },
+    halfOn: {
+      borderColor: theme.colors.action.base,
+      backgroundColor: theme.colors.action.wash,
+    },
+    halfPressed: {
+      opacity: 0.6,
+    },
+    halfLabel: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
+      textTransform: 'uppercase',
+    },
+    halfLabelOn: {
+      color: theme.colors.text.primary,
     },
     understood: {
       ...theme.typography.caption,

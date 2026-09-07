@@ -20,6 +20,10 @@ export const endpoints = {
   // ── Transactions ─────────────────────────────────────────
   transactions: {
     list: `${V1}/transactions`,
+    // Distinct merchants this person has recorded before, newest and most
+    // used first, each with the category it usually lands in. Feeds the
+    // typeahead on manual entry.
+    merchants: `${V1}/transactions/merchants`,
     detail: (id: string) => `${V1}/transactions/${id}`,
     updateCategory: (id: string) => `${V1}/transactions/${id}/category`,
     // Only rows the user typed themselves, and only until a bank alert

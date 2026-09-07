@@ -48,6 +48,7 @@ import { ActionButton, NoticeBand, RuledField } from '@/design-system/components
 import { RemoteCaptureRepository } from '@/core/repositories/capture/RemoteCaptureRepository';
 import { AmountField } from '@/features/capture/components/AmountField';
 import { DirectionToggle } from '@/features/capture/components/DirectionToggle';
+import { useMerchantSuggestions } from '@/features/capture/hooks/useMerchantSuggestions';
 import { ChoiceRow, type ChoiceOption } from '@/features/capture/components/ChoiceRow';
 import { WhenField } from '@/features/capture/components/WhenField';
 import { DuplicateNotice } from '@/features/capture/components/DuplicateNotice';
@@ -98,6 +99,13 @@ export default function NewTransactionScreen(): React.JSX.Element {
   });
 
   const direction = watch('direction');
+  const merchantName = watch('merchantName');
+
+  // Which merchant the current category was inferred from, or null when the
+  // category is the user's own doing. Only ever set by picking a suggestion.
+  const [guessedFrom, setGuessedFrom] = useState<string | null>(null);
+
+  const { suggestions } = useMerchantSuggestions(merchantName);
 
   useEffect(() => {
     let cancelled = false;
@@ -249,19 +257,61 @@ export default function NewTransactionScreen(): React.JSX.Element {
           control={control}
           name="merchantName"
           render={({ field: { value, onChange, onBlur } }) => (
-            <RuledField
-              ref={merchantRef}
-              label={direction === 'DEBIT' ? 'Who you paid' : 'Who paid you'}
-              index={1}
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              placeholder={direction === 'DEBIT' ? 'Shoprite, fuel, MTN, rent…' : 'Salary, a friend…'}
-              autoCapitalize="words"
-              autoCorrect={false}
-              returnKeyType="done"
-              error={errors.merchantName?.message}
-            />
+            <>
+              <RuledField
+                ref={merchantRef}
+                label={direction === 'DEBIT' ? 'Who you paid' : 'Who paid you'}
+                index={1}
+                value={value}
+                onChangeText={(next) => {
+                  onChange(next);
+                  // Typing over a picked name retires the guess with it. The
+                  // category stays as it is — it may be right, and clearing a
+                  // field somebody can see is worse than leaving it — but it
+                  // stops claiming to have come from a merchant that is no
+                  // longer in the box.
+                  if (guessedFrom !== null) setGuessedFrom(null);
+                }}
+                onBlur={onBlur}
+                placeholder={direction === 'DEBIT' ? 'Shoprite, fuel, MTN, rent…' : 'Salary, a friend…'}
+                autoCapitalize="words"
+                autoCorrect={false}
+                returnKeyType="done"
+                error={errors.merchantName?.message}
+              />
+
+              {/* Names this person has used before. Picking one is what keeps
+                  a single shop from becoming four spellings in their own
+                  ledger — see useMerchantSuggestions. */}
+              {suggestions.length > 0 && (
+                <View style={styles.suggestions}>
+                  {suggestions.map((suggestion) => (
+                    <Pressable
+                      key={suggestion.merchantName}
+                      onPress={() => {
+                        onChange(suggestion.merchantName);
+                        if (suggestion.categoryId !== null) {
+                          setValue('categoryId', suggestion.categoryId, { shouldValidate: false });
+                          setGuessedFrom(suggestion.merchantName);
+                        } else {
+                          setGuessedFrom(null);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.suggestion,
+                        pressed && styles.suggestionPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use ${suggestion.merchantName}`}
+                    >
+                      <Text style={styles.suggestionLabel} numberOfLines={1}>
+                        {suggestion.merchantName}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </>
           )}
         />
 
@@ -305,6 +355,17 @@ export default function NewTransactionScreen(): React.JSX.Element {
             />
           )}
         />
+
+        {/* Said out loud rather than filled in silently. The commonest past
+            category is a good prediction and a bad certainty, and a value that
+            appears without explanation is one nobody thinks to check — which
+            is how a single old miscategorisation propagates through every
+            future entry for that merchant. */}
+        {guessedFrom !== null && (
+          <Text style={styles.guess}>
+            Guessed from the last time you recorded {guessedFrom}. Change it if it is wrong.
+          </Text>
+        )}
 
         <Text style={styles.footnote}>
           If your bank emails an alert for this later, the two will be joined into one
@@ -381,6 +442,34 @@ function createStyles(theme: AppTheme) {
       ...theme.typography.bodyStrong,
       color: theme.colors.text.primary,
       textDecorationLine: 'underline',
+    },
+    suggestions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
+    },
+    suggestion: {
+      paddingVertical: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.rule.edge,
+      borderRadius: theme.radius.sm,
+      maxWidth: '100%',
+    },
+    suggestionPressed: {
+      opacity: 0.6,
+    },
+    suggestionLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.text.secondary,
+    },
+    /** The category was filled in from history. Marked, never silent. */
+    guess: {
+      ...theme.typography.caption,
+      color: theme.colors.text.tertiary,
+      marginTop: theme.spacing.xs,
     },
     footnote: {
       ...theme.typography.caption,
