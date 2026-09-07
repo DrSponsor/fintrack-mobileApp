@@ -134,7 +134,20 @@ export default function ConnectScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const { phase, error, scanFailed, connect, discovered, discovering, confirm, confirming, rescan } =
+  const {
+    phase,
+    error,
+    scanFailed,
+    connect,
+    discovered,
+    discovering,
+    confirm,
+    confirming,
+    rescan,
+    connectedEmail,
+    switchEmail,
+    switching,
+  } =
     useGmailConnect();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
 
@@ -239,10 +252,44 @@ export default function ConnectScreen(): React.JSX.Element {
         {phase === 'done' && discovered.length === 0 && !scanFailed && (
           <Reveal index={0}>
             <Text style={styles.lede}>No bank accounts found in that inbox yet.</Text>
-            <Text style={styles.note}>
-              This is normal if your bank does not email alerts, or if none have arrived in the
-              last few months. You can still record transactions by hand.
+
+            {/* WHICH inbox. The commonest cause of an empty scan is having
+                picked the wrong Google account at the chooser, and that is
+                impossible to notice when the screen never says which one it
+                read. */}
+            {connectedEmail !== null && (
+              <Text style={styles.note}>
+                We read <Text style={styles.noteStrong}>{connectedEmail}</Text>. Is that the
+                address your bank sends alerts to?
+              </Text>
+            )}
+
+            {/* Named in order of how often each is actually the cause. The
+                permission box is first because it is invisible after the fact:
+                the connection looks healthy and every read silently fails. */}
+            <Text style={[styles.note, styles.noteNext]}>
+              If this is the right inbox, the usual reason is the tick box on the Google screen —
+              the one allowing FinTrack to read your email. Leaving it unticked still signs you
+              in, and we simply cannot see anything.
             </Text>
+            <Text style={[styles.note, styles.noteNext]}>
+              It is also normal if your bank does not email alerts, or none have arrived in the
+              last few months. You can record transactions by hand either way.
+            </Text>
+
+            <View style={styles.commit}>
+              <ActionButton label='Try again' loadingLabel='Reading…' onPress={rescan} />
+            </View>
+            <Pressable
+              onPress={() => void switchEmail()}
+              disabled={switching}
+              style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
+              accessibilityRole='button'
+            >
+              <Text style={styles.secondaryLabel}>
+                {switching ? 'Disconnecting…' : 'Use a different email'}
+              </Text>
+            </Pressable>
           </Reveal>
         )}
 
@@ -344,6 +391,16 @@ function createStyles(theme: AppTheme) {
       ...theme.typography.body,
       color: theme.colors.text.secondary,
     },
+    /** A note stacked under another one. `note` itself stays flush so every
+     *  existing single-note block on this screen is untouched. */
+    noteNext: {
+      marginTop: theme.spacing.md,
+    },
+    /** The connected address inside a sentence. Lifted to primary because it
+     *  is the thing being asked about, not the sentence around it. */
+    noteStrong: {
+      color: theme.colors.text.primary,
+    },
     list: {
       marginTop: theme.spacing.xl,
     },
@@ -396,6 +453,21 @@ function createStyles(theme: AppTheme) {
     },
     commit: {
       marginTop: theme.spacing.xl,
+    },
+    /** The lesser of two actions, same shape as the one in WhenSheet so
+     *  "the quieter choice" looks identical wherever it appears. */
+    secondary: {
+      minHeight: 50,
+      marginTop: theme.spacing.xs,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    secondaryPressed: {
+      opacity: 0.6,
+    },
+    secondaryLabel: {
+      ...theme.typography.body,
+      color: theme.colors.text.secondary,
     },
   });
 }

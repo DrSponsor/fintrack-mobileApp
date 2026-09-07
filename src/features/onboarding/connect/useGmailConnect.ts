@@ -77,6 +77,7 @@ const NOT_CONNECTED = 'FINTRACK_ERR_4012';
 
 export const connectKeys = {
   discovered: (user: string) => ['connect', 'discovered', user] as const,
+  connection: (user: string) => ['connect', 'connection', user] as const,
 };
 
 function describe(err: unknown): string {
@@ -106,6 +107,13 @@ export interface UseGmailConnectResult {
   readonly confirm: (accounts: readonly ConfirmedAccount[]) => Promise<void>;
   readonly confirming: boolean;
   readonly rescan: () => void;
+  /** The mailbox Google actually authorised. Shown in the empty state so a
+   *  person can see WHICH inbox found nothing — the commonest cause of an
+   *  empty scan is having connected the wrong Google account. */
+  readonly connectedEmail: string | null;
+  /** Forgets the current inbox so a different one can be connected. */
+  readonly switchEmail: () => Promise<void>;
+  readonly switching: boolean;
 }
 
 export function useGmailConnect(): UseGmailConnectResult {
@@ -134,6 +142,32 @@ export function useGmailConnect(): UseGmailConnectResult {
       setError(describe(err));
     }
   }, []);
+
+  // Which mailbox Google actually authorised. Cheap — it reads a stored row
+  // rather than the inbox — and it is the one fact that turns "nothing found"
+  // from a dead end into something a person can act on, because the commonest
+  // cause is having picked the wrong Google account at the chooser.
+  const connection = useQuery({
+    queryKey: connectKeys.connection(user),
+    queryFn: () =>
+      api.get<{ connected: boolean; emailAddress: string | null }>(
+        endpoints.capture.email.connection,
+      ),
+  });
+
+  // Forgetting the inbox, so a different one can be connected.
+  //
+  // Disconnect THEN consent, rather than just sending them back to Google:
+  // Google remembers the last account and will happily reissue a token for the
+  // same mailbox without asking, which is precisely the mailbox that just
+  // found nothing.
+  const switching = useMutation({
+    mutationFn: async () => {
+      await api.post(endpoints.capture.email.oauthDisconnect, {});
+      await queryClient.invalidateQueries({ queryKey: connectKeys.connection(user) });
+      await queryClient.invalidateQueries({ queryKey: connectKeys.discovered(user) });
+    },
+  });
 
   // A live read of the mailbox, not cached data: nothing about it is stored
   // server side, so there is no cache to be stale against. It runs on every
@@ -239,5 +273,11 @@ export function useGmailConnect(): UseGmailConnectResult {
     confirm,
     confirming: confirmation.isPending,
     rescan: () => void discovery.refetch(),
+    connectedEmail: connection.data?.emailAddress ?? null,
+    switchEmail: async () => {
+      await switching.mutateAsync();
+      await connect();
+    },
+    switching: switching.isPending,
   };
 }
