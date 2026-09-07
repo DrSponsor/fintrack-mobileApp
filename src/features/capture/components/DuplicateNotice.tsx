@@ -126,8 +126,16 @@ export function DuplicateNotice({
             <Text style={styles.primaryLabel}>Keep the one I have</Text>
           </Pressable>
 
+          {/* Bare, not outlined.
+
+              Outlining this was tried and looked forced: a full-width box
+              directly beneath the filled button competes with it instead of
+              deferring to it, and this label is a sentence rather than a verb,
+              so the box has to stretch to hold it.
+
+              The rank was never the problem. This action is found by sitting
+              under the primary, which is exactly the case `bare` is for. */}
           <QuietButton
-            tone="outlined"
             label={isSubmitting ? 'Recording…' : 'These are different — record it'}
             onPress={onRecordAnyway}
             disabled={isSubmitting}
