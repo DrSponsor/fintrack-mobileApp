@@ -48,7 +48,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/design-system/ThemeProvider';
 import type { AppTheme } from '@/design-system/theme';
 import { categoryPalette } from '@/design-system/tokens';
-import { NoticeBand } from '@/design-system/components';
+import { ActionButton, NoticeBand } from '@/design-system/components';
 import { Reveal } from '@/design-system/motion/Reveal';
 import { RollingNumber } from '@/design-system/motion/RollingNumber';
 import { formatKoboToNaira } from '@/shared/components/AmountDisplay/AmountDisplay';
@@ -395,9 +395,26 @@ function EmptyMonth({
           Your bank already emails you when money moves. Connect that inbox and this ledger
           fills itself — there is nothing to type.
         </Text>
-        <Pressable onPress={onConnect} accessibilityRole="button" style={styles.emptyAction} hitSlop={8}>
-          <Text style={styles.emptyActionLabel}>Connect your bank</Text>
-        </Pressable>
+        {/* The app's real button, not brass text.
+            
+            This was a bare Pressable wrapping bodyStrong text in
+            colors.action.base, and a tester could not find it. The colour was
+            never the problem — brass on this ground measures 8.75:1, which
+            passes WCAG AAA — it was that nothing about it was shaped like a
+            control. Coloured text among other text reads as emphasis, and the
+            two paragraphs above it are emphatic already.
+            
+            This is the single thing a new person has to do, and the ledger's
+            own empty state has always used ActionButton for its equivalent.
+            The dashboard was the inconsistent one. */}
+        <View style={styles.emptyAction}>
+          <ActionButton
+            label="Connect your bank"
+            loadingLabel="Opening…"
+            onPress={onConnect}
+            accessibilityHint="Opens Google so FinTrack can read your bank alert emails"
+          />
+        </View>
       </View>
     );
   }
@@ -409,8 +426,20 @@ function EmptyMonth({
         This ledger fills itself. When your bank sends an alert, the entry appears here on
         its own — there is nothing to set up and nothing to type.
       </Text>
-      <Pressable onPress={onManual} accessibilityRole="button" style={styles.emptyAction} hitSlop={8}>
-        <Text style={styles.emptyActionLabel}>Or record one by hand</Text>
+      {/* Deliberately quieter than the one above, and still visibly a button.
+          
+          Recording by hand is the alternative here, not the instruction — the
+          sentence above says the ledger fills itself, and the ledger's own
+          header carries a + for this. So it gets an outline rather than a
+          fill: enough edge to read as a control, not enough weight to argue
+          with the message it sits under. */}
+      <Pressable
+        onPress={onManual}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.quietAction, pressed && styles.quietActionPressed]}
+        hitSlop={8}
+      >
+        <Text style={styles.quietActionLabel}>Record one by hand</Text>
       </Pressable>
     </View>
   );
@@ -539,10 +568,35 @@ function createStyles(theme: AppTheme) {
     },
     emptyAction: {
       marginTop: theme.spacing.xl,
-      minHeight: 44,
-      justifyContent: 'center',
     },
-    emptyActionLabel: {
+    /**
+     * An outlined button: a control by its edge rather than by its fill.
+     *
+     * The edge is brass, not a white rule. colors.rule.strong is 16% white,
+     * which composites to 1.54:1 against this ground — a boundary WCAG asks to
+     * be 3:1, and in practice a line you have to hunt for. Using it here would
+     * have replaced one invisible control with another. Brass measures 8.75:1,
+     * and a full-width border rather than a hairline gives it presence at a
+     * glance.
+     *
+     * Same family as the filled button above, one rank down: outline instead
+     * of fill is the difference, so the hierarchy is legible without either
+     * one stopping being a button.
+     */
+    quietAction: {
+      marginTop: theme.spacing.xl,
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.action.base,
+      borderRadius: theme.radius.md,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    quietActionPressed: {
+      opacity: 0.6,
+    },
+    quietActionLabel: {
       ...theme.typography.bodyStrong,
       color: theme.colors.action.base,
     },
